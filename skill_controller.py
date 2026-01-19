@@ -462,7 +462,7 @@ class SkillController:
                 # Execute command
                 result = subprocess.run(
                     cmd,
-                    shell=True,
+                    shell=False,
                     capture_output=True,
                     text=True,
                     timeout=step.get("timeout", 300),
@@ -623,7 +623,7 @@ class SkillController:
             # Windows-compatible check
             result = subprocess.run(
                 f"where {cmd}" if os.name == "nt" else f"command -v {cmd}",
-                shell=True,
+                shell=False,
                 capture_output=True,
             )
             return result.returncode == 0, f"Command '{cmd}' exists"
@@ -653,7 +653,7 @@ class SkillController:
             except KeyError as e:
                 return False, f"Missing input for verification: {e}"
 
-            result = subprocess.run(cmd, shell=True, capture_output=True)
+            result = subprocess.run(cmd, shell=False, capture_output=True)
             expected = check.get("expect_exit", 0)
             return result.returncode == expected, f"Exit code: {result.returncode}"
 
@@ -689,7 +689,7 @@ class SkillController:
                 logger.info(f"  Rolling back: {step['id']}")
                 try:
                     cmd = step["cmd"].format(**inputs)
-                    subprocess.run(cmd, shell=True, capture_output=True, timeout=60)
+                    subprocess.run(cmd, shell=False, capture_output=True, timeout=60)
                 except Exception as e:
                     logger.error(f"  Rollback failed: {e}")
 
