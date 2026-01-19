@@ -38,6 +38,7 @@ Built following [Anthropic's "Building Effective Agents"](https://www.anthropic.
 ## Architecture
 
 ```mermaid
+%%{init: {'theme':'dark', 'themeVariables': { 'primaryColor':'#3b82f6', 'primaryTextColor':'#ffffff', 'edgeLabelBackground':'#1e1e1e' }}%%
 flowchart TB
     subgraph Input
         A[skill.json] --> B[Skill Controller]
@@ -79,6 +80,7 @@ flowchart TB
 ### Skill Structure
 
 ```mermaid
+%%{init: {'theme':'dark', 'themeVariables': { 'primaryColor':'#3b82f6', 'primaryTextColor':'#ffffff', 'edgeLabelBackground':'#1e1e1e' }}%%
 classDiagram
     class Skill {
         +string name
@@ -251,6 +253,7 @@ Each skill is a JSON file with this structure:
 ### Autonomy Levels
 
 ```mermaid
+%%{init: {'theme':'dark', 'themeVariables': { 'primaryColor':'#3b82f6', 'primaryTextColor':'#ffffff', 'edgeLabelBackground':'#1e1e1e' }}%%
 graph LR
     A[delegado] -->|"Autonomous<br/>Confirms on errors only"| B[Low Risk Tasks]
     C[co-pilot] -->|"Confirms major changes"| D[Complex Tasks]
@@ -298,6 +301,7 @@ graph LR
 Chain multiple skills together:
 
 ```mermaid
+%%{init: {'theme':'dark', 'themeVariables': { 'primaryColor':'#3b82f6', 'primaryTextColor':'#ffffff', 'edgeLabelBackground':'#1e1e1e' }}%%
 graph LR
     A[dataset-prep] --> B[training-pipeline]
     B --> C[model-evaluation]
