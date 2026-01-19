@@ -23,7 +23,6 @@ from pathlib import Path
 from typing import Dict, Any, Optional, List, Callable
 from dataclasses import dataclass, field, asdict
 from datetime import datetime
-from enum import Enum
 
 # Conditional import for jsonschema
 try:
@@ -33,7 +32,6 @@ try:
 except ImportError:
     jsonschema = None  # type: ignore
     HAS_JSONSCHEMA = False
-    logger_init_warning = "Warning: jsonschema not installed. Schema validation will be ENFORCED if schema exists. Run: pip install jsonschema"
 
 # Configure logging
 logging.basicConfig(
@@ -44,14 +42,6 @@ logging.basicConfig(
     ],
 )
 logger = logging.getLogger("SkillController")
-
-
-class AutonomyLevel(Enum):
-    """Autonomy levels for skills."""
-
-    DELEGADO = "delegado"  # Execute without confirmation
-    CO_PILOT = "co-pilot"  # Confirm before major changes
-    ASISTENTE = "asistente"  # Confirm every step
 
 
 @dataclass
@@ -270,6 +260,34 @@ class SkillController:
                     if isinstance(item, str):
                         self._validate_shell_safety(item, f"{key}[{i}]")
 
+    def _validate_skill_defaults(self, skill: Dict[str, Any], skill_path: Path) -> None:
+        """
+        Validate that default values in skill.json are shell-safe.
+
+        This catches malicious or accidental injection in skill definitions
+        at load time rather than execution time.
+
+        Args:
+            skill: The loaded skill definition
+            skill_path: Path to skill.json for error messages
+
+        Raises:
+            ValueError: If any default contains dangerous characters
+        """
+        # Validate input defaults
+        for input_name, input_spec in skill.get("inputs", {}).items():
+            if "default" in input_spec:
+                default_val = input_spec["default"]
+                if isinstance(default_val, str):
+                    try:
+                        self._validate_shell_safety(
+                            default_val, f"default[{input_name}]"
+                        )
+                    except ValueError as e:
+                        raise ValueError(
+                            f"Skill {skill_path} has unsafe default value: {e}"
+                        )
+
     def _load_registry(self) -> None:
         """Load all skills and validate against schema."""
         if not self.skills_dir.exists():
@@ -296,6 +314,9 @@ class SkillController:
                             f"Run: pip install jsonschema"
                         )
                     jsonschema.validate(instance=skill, schema=self.schema)  # type: ignore[union-attr]
+
+                # Validate default values in skill.json are shell-safe
+                self._validate_skill_defaults(skill, skill_json)
 
                 self.registry[skill["name"]] = skill
                 self.registry[skill["name"]]["_path"] = str(skill_dir)
@@ -428,7 +449,7 @@ class SkillController:
         logger.info(f"Autonomy Level: {skill['autonomy']}")
         logger.info(f"{'=' * 60}")
 
-        # Validate inputs
+        # Validate inputs (required fields, enum values, types)
         valid, error = self.validate_inputs(skill, inputs)
         if not valid:
             return SkillResult(
@@ -438,7 +459,12 @@ class SkillController:
                 error=error,
             )
 
-        # SECURITY: Validate inputs are safe for shell interpolation
+        # Apply defaults BEFORE shell validation (defaults also need validation)
+        for input_name, input_spec in skill.get("inputs", {}).items():
+            if input_name not in inputs and "default" in input_spec:
+                inputs[input_name] = input_spec["default"]
+
+        # SECURITY: Validate ALL inputs (user + defaults) are safe for shell interpolation
         try:
             self._validate_inputs_for_shell(inputs)
         except ValueError as e:
@@ -448,11 +474,6 @@ class SkillController:
                 version=skill["version"],
                 error=str(e),
             )
-
-        # Apply defaults
-        for input_name, input_spec in skill.get("inputs", {}).items():
-            if input_name not in inputs and "default" in input_spec:
-                inputs[input_name] = input_spec["default"]
 
         steps_completed = []
         steps_failed = []

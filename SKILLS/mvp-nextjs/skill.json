@@ -28,9 +28,8 @@
     },
     "target_dir": {
       "type": "string",
-      "required": false,
-      "default": "C:/Proyectos",
-      "description": "Parent directory for project"
+      "required": true,
+      "description": "Parent directory for project (absolute path)"
     },
     "include_supabase": {
       "type": "boolean",

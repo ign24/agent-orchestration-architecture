@@ -24,9 +24,8 @@
     },
     "target_dir": {
       "type": "string",
-      "required": false,
-      "default": "C:/Proyectos",
-      "description": "Parent directory"
+      "required": true,
+      "description": "Parent directory (absolute path)"
     },
     "include_crud": {
       "type": "boolean",
