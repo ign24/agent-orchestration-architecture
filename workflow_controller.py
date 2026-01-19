@@ -32,8 +32,8 @@ try:
 
     HAS_JSONSCHEMA = True
 except ImportError:
+    jsonschema = None  # type: ignore
     HAS_JSONSCHEMA = False
-    print("Warning: jsonschema not installed. Run: pip install jsonschema")
 
 # Configure logging
 logging.basicConfig(
@@ -133,11 +133,13 @@ class WorkflowController:
         state_dir: str = "outputs/workflow_state",
         base_path: Optional[str] = None,
     ):
-        # Determine base path
+        # Determine base path (priority: explicit param > env var > cwd)
         if base_path:
             self.base_path = Path(base_path)
+        elif os.environ.get("AGENT_WORKSPACE"):
+            self.base_path = Path(os.environ["AGENT_WORKSPACE"])
         else:
-            self.base_path = Path("C:/Proyectos")
+            self.base_path = Path.cwd()
 
         self.workflows_dir = self.base_path / workflows_dir
         self.schema_path = self.base_path / schema_path
@@ -145,10 +147,16 @@ class WorkflowController:
         self.state_dir.mkdir(parents=True, exist_ok=True)
 
         # Load JSON Schema for validation
+        # IMPORTANT: Load schema regardless of jsonschema availability
         self.schema = None
-        if self.schema_path.exists() and HAS_JSONSCHEMA:
+        if self.schema_path.exists():
             with open(self.schema_path) as f:
                 self.schema = json.load(f)
+            if not HAS_JSONSCHEMA:
+                logger.warning(
+                    "Schema loaded but jsonschema not installed. "
+                    "Validation will be enforced - install jsonschema or remove schema file."
+                )
 
         # Initialize SkillController
         self.skill_controller = SkillController(base_path=str(self.base_path))
@@ -172,9 +180,14 @@ class WorkflowController:
                 with open(workflow_file, encoding="utf-8") as f:
                     workflow = json.load(f)
 
-                # Validate against schema if available
-                if self.schema and HAS_JSONSCHEMA:
-                    jsonschema.validate(instance=workflow, schema=self.schema)
+                # Validate against schema - ENFORCED if schema exists
+                if self.schema:
+                    if not HAS_JSONSCHEMA:
+                        raise RuntimeError(
+                            "Schema validation required but jsonschema not installed. "
+                            "Run: pip install jsonschema"
+                        )
+                    jsonschema.validate(instance=workflow, schema=self.schema)  # type: ignore[union-attr]
 
                 # Validate all skills exist
                 for phase in workflow.get("phases", []):
@@ -192,13 +205,16 @@ class WorkflowController:
 
             except json.JSONDecodeError as e:
                 logger.error(f"Invalid JSON in {workflow_file}: {e}")
+            except RuntimeError as e:
+                logger.error(str(e))
             except Exception as e:
-                if HAS_JSONSCHEMA and isinstance(e, jsonschema.ValidationError):
-                    logger.error(
-                        f"Workflow {workflow_file} failed validation: {e.message}"
-                    )
-                else:
-                    logger.error(f"Failed to load {workflow_file}: {e}")
+                if HAS_JSONSCHEMA and jsonschema is not None:
+                    if isinstance(e, jsonschema.ValidationError):
+                        logger.error(
+                            f"Workflow {workflow_file} failed validation: {e.message}"
+                        )
+                        continue
+                logger.error(f"Failed to load {workflow_file}: {e}")
 
     def list_workflows(self) -> List[str]:
         """Return list of available workflows."""
@@ -236,6 +252,8 @@ class WorkflowController:
             return key in phase_outputs and phase_outputs[key].get("success", False)
 
         elif cond_type == "file_exists":
+            if path is None:
+                return False
             formatted_path = path.format(**inputs)
             return Path(formatted_path).exists()
 
@@ -611,9 +629,10 @@ def main():
             print("\nAvailable workflows:")
             for wf in workflows:
                 info = controller.get_workflow_info(wf)
-                desc = info.get("description", "No description")[:50]
-                phases = len(info.get("phases", []))
-                print(f"  - {wf} (v{info['version']}): {desc} [{phases} phases]")
+                if info:
+                    desc = info.get("description", "No description")[:50]
+                    phases = len(info.get("phases", []))
+                    print(f"  - {wf} (v{info['version']}): {desc} [{phases} phases]")
         else:
             print("\nNo workflows found. Create workflows in WORKFLOWS/*.json")
 

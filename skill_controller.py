@@ -116,10 +116,17 @@ class SkillController:
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
         # Load JSON Schema for validation
+        # IMPORTANT: Load schema regardless of jsonschema availability
+        # Validation will fail later if schema exists but jsonschema is not installed
         self.schema = None
-        if self.schema_path.exists() and HAS_JSONSCHEMA:
+        if self.schema_path.exists():
             with open(self.schema_path) as f:
                 self.schema = json.load(f)
+            if not HAS_JSONSCHEMA:
+                logger.warning(
+                    "Schema loaded but jsonschema not installed. "
+                    "Validation will be enforced - install jsonschema or remove schema file."
+                )
 
         # Load all skills into registry
         self.registry: Dict[str, Dict] = {}
@@ -198,6 +205,71 @@ class SkillController:
 
         return sanitized
 
+    def _validate_shell_safety(self, value: str, input_name: str) -> None:
+        """
+        Validate that a string input is safe for shell interpolation.
+
+        SECURITY: Prevents command injection via user inputs that get
+        interpolated into shell commands.
+
+        Args:
+            value: The input value to validate
+            input_name: Name of the input for error messages
+
+        Raises:
+            ValueError: If input contains dangerous shell characters
+        """
+        # Characters that can break out of shell commands or cause injection
+        DANGEROUS_CHARS = {
+            ";",  # Command separator
+            "&",  # Background/AND operator
+            "|",  # Pipe
+            "$",  # Variable expansion
+            "`",  # Command substitution
+            "(",  # Subshell
+            ")",  # Subshell
+            "{",  # Brace expansion
+            "}",  # Brace expansion
+            "<",  # Redirect input
+            ">",  # Redirect output
+            "\n",  # Newline (command separator)
+            "\r",  # Carriage return
+            "\\",  # Escape character
+            '"',  # Quote (can break out)
+            "'",  # Quote (can break out)
+            "#",  # Comment (truncates command)
+        }
+
+        if not isinstance(value, str):
+            return  # Non-strings are safe from shell injection
+
+        found_dangerous = [char for char in value if char in DANGEROUS_CHARS]
+        if found_dangerous:
+            raise ValueError(
+                f"SECURITY: Input '{input_name}' contains dangerous shell characters: "
+                f"{found_dangerous}. This could allow command injection."
+            )
+
+    def _validate_inputs_for_shell(self, inputs: Dict[str, Any]) -> None:
+        """
+        Validate all inputs are safe for shell interpolation.
+
+        Args:
+            inputs: Dictionary of inputs to validate
+
+        Raises:
+            ValueError: If any input contains dangerous characters
+        """
+        for key, value in inputs.items():
+            if isinstance(value, str):
+                self._validate_shell_safety(value, key)
+            elif isinstance(value, dict):
+                self._validate_inputs_for_shell(value)
+            elif isinstance(value, list):
+                for i, item in enumerate(value):
+                    if isinstance(item, str):
+                        self._validate_shell_safety(item, f"{key}[{i}]")
+
     def _load_registry(self) -> None:
         """Load all skills and validate against schema."""
         if not self.skills_dir.exists():
@@ -272,19 +344,51 @@ class SkillController:
         return exists
 
     def validate_inputs(self, skill: Dict, inputs: Dict) -> tuple[bool, Optional[str]]:
-        """Validate inputs match skill requirements."""
+        """Validate inputs match skill requirements including type checking."""
         skill_inputs = skill.get("inputs", {})
 
+        # Type mapping for validation
+        TYPE_MAP = {
+            "string": str,
+            "str": str,
+            "integer": int,
+            "int": int,
+            "number": (int, float),
+            "float": float,
+            "boolean": bool,
+            "bool": bool,
+            "array": list,
+            "list": list,
+            "object": dict,
+            "dict": dict,
+        }
+
         for input_name, input_spec in skill_inputs.items():
+            # Check required inputs
             if input_spec.get("required", False) and input_name not in inputs:
                 return False, f"Missing required input: {input_name}"
 
+            # Validate enum values
             if input_name in inputs and "enum" in input_spec:
                 if inputs[input_name] not in input_spec["enum"]:
                     return (
                         False,
                         f"Invalid value for {input_name}: must be one of {input_spec['enum']}",
                     )
+
+            # Validate types
+            if input_name in inputs and "type" in input_spec:
+                expected_type = input_spec["type"]
+                actual_value = inputs[input_name]
+
+                if expected_type in TYPE_MAP:
+                    expected_python_type = TYPE_MAP[expected_type]
+                    if not isinstance(actual_value, expected_python_type):
+                        return (
+                            False,
+                            f"Invalid type for {input_name}: expected {expected_type}, "
+                            f"got {type(actual_value).__name__}",
+                        )
 
         return True, None
 
@@ -332,6 +436,17 @@ class SkillController:
                 skill_name=skill_name,
                 version=skill["version"],
                 error=error,
+            )
+
+        # SECURITY: Validate inputs are safe for shell interpolation
+        try:
+            self._validate_inputs_for_shell(inputs)
+        except ValueError as e:
+            return SkillResult(
+                success=False,
+                skill_name=skill_name,
+                version=skill["version"],
+                error=str(e),
             )
 
         # Apply defaults
@@ -597,15 +712,31 @@ class SkillController:
                         error=f"Missing input for code: {e}",
                     )
 
+                # Validate working directory with path traversal protection
+                python_working_dir = None
+                python_working_dir_str = step.get("working_dir", ".")
+                if python_working_dir_str != ".":
+                    try:
+                        python_working_dir_str = python_working_dir_str.format(**inputs)
+                        python_working_dir = self._validate_path_safety(
+                            python_working_dir_str, "python working_dir"
+                        )
+                    except ValueError as e:
+                        return StepResult(
+                            step_id=step_id,
+                            success=False,
+                            output="",
+                            duration_ms=0,
+                            error=str(e),
+                        )
+
                 # Execute via subprocess for security isolation
                 result = subprocess.run(
                     [sys.executable, "-c", code],
                     capture_output=True,
                     text=True,
                     timeout=step.get("timeout", 300),
-                    cwd=step.get("working_dir")
-                    if step.get("working_dir") != "."
-                    else None,
+                    cwd=python_working_dir,
                     env={**os.environ, **step.get("env", {})},
                 )
 
@@ -682,20 +813,41 @@ class SkillController:
                         error="No agent_callback provided for MCP step",
                     )
 
-                result = agent_callback(
-                    "mcp_call",
-                    server=step.get("mcp_server"),
-                    tool=step.get("mcp_tool"),
-                    args=step.get("mcp_args", {}),
-                )
-                duration = int((datetime.now() - step_start).total_seconds() * 1000)
+                try:
+                    result = agent_callback(
+                        "mcp_call",
+                        server=step.get("mcp_server"),
+                        tool=step.get("mcp_tool"),
+                        args=step.get("mcp_args", {}),
+                    )
+                    duration = int((datetime.now() - step_start).total_seconds() * 1000)
 
-                return StepResult(
-                    step_id=step_id,
-                    success=True,
-                    output=str(result) if result else "OK",
-                    duration_ms=duration,
-                )
+                    # Check if result indicates failure
+                    if isinstance(result, dict):
+                        success = result.get("success", True)
+                        error = result.get("error")
+                    elif isinstance(result, StepResult):
+                        return result
+                    else:
+                        success = result is not None
+                        error = None if success else "MCP call returned None"
+
+                    return StepResult(
+                        step_id=step_id,
+                        success=success,
+                        output=str(result) if result else "",
+                        duration_ms=duration,
+                        error=error,
+                    )
+                except Exception as e:
+                    duration = int((datetime.now() - step_start).total_seconds() * 1000)
+                    return StepResult(
+                        step_id=step_id,
+                        success=False,
+                        output="",
+                        duration_ms=duration,
+                        error=f"MCP call failed: {e}",
+                    )
 
             else:
                 return StepResult(
