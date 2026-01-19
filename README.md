@@ -27,11 +27,110 @@ AI coding agents are powerful but can hallucinate, skip steps, or lose context. 
 
 - **Structured execution** — Skills define exact steps, preventing agents from improvising
 - **Schema validation** — JSON Schema ensures skills are well-formed before execution  
-- **Autonomy levels** — Control how much confirmation the agent needs (`delegado`, `co-pilot`, `asistente`)
+- **Autonomy levels** — Control how much confirmation the agent needs
 - **Rollback support** — Failed steps can be automatically reverted
 - **Execution logs** — Full history with timing and error tracking
 
 Built following [Anthropic's "Building Effective Agents"](https://www.anthropic.com/research/building-effective-agents) principles.
+
+---
+
+## Architecture
+
+```mermaid
+flowchart TB
+    subgraph Input
+        A[skill.json] --> B[Skill Controller]
+        C[User Inputs] --> B
+    end
+    
+    subgraph Validation
+        B --> D{JSON Schema<br/>Valid?}
+        D -->|No| E[❌ Error]
+        D -->|Yes| F[Check Prerequisites]
+        F --> G{Commands<br/>exist?}
+        G -->|No| E
+    end
+    
+    subgraph Execution
+        G -->|Yes| H[Load Context7 Docs]
+        H --> I[Execute Steps]
+        I --> J{Step<br/>Success?}
+        J -->|No| K[🔄 Rollback]
+        K --> E
+        J -->|Yes| L{More<br/>Steps?}
+        L -->|Yes| I
+    end
+    
+    subgraph Output
+        L -->|No| M[Run Verification]
+        M --> N{Verified?}
+        N -->|No| K
+        N -->|Yes| O[✅ Success]
+        O --> P[📝 Log Results]
+    end
+    
+    style A fill:#e1f5fe
+    style O fill:#c8e6c9
+    style E fill:#ffcdd2
+    style K fill:#fff3e0
+```
+
+### Skill Structure
+
+```mermaid
+classDiagram
+    class Skill {
+        +string name
+        +string version
+        +string description
+        +string autonomy
+        +array context7_required
+        +array pre_requisites
+        +object inputs
+        +array steps
+        +array verification
+        +array rollback
+        +object metadata
+    }
+    
+    class Step {
+        +string id
+        +string type
+        +string cmd
+        +int timeout
+        +string description
+    }
+    
+    class Verification {
+        +string type
+        +string cmd
+        +string path
+        +int expect_exit
+    }
+    
+    Skill "1" *-- "many" Step
+    Skill "1" *-- "many" Verification
+```
+
+### Project Structure
+
+```
+agent-orchestration-architecture/
+├── skill_controller.py      # Skill execution engine
+├── workflow_controller.py   # Multi-skill orchestrator
+├── schemas/
+│   ├── skill-schema.json    # Skill validation schema
+│   └── workflow-schema.json # Workflow validation schema
+├── SKILLS/                  # 19 skill definitions
+│   ├── yolo26-detection/
+│   │   └── skill.json
+│   ├── sam3-segmentation/
+│   ├── mvp-nextjs/
+│   └── ...
+├── WORKFLOWS/               # Multi-skill pipelines
+└── TEMPLATES/               # Project templates
+```
 
 ---
 
@@ -59,46 +158,6 @@ python skill_controller.py --execute sam3-segmentation \
 # Real execution
 python skill_controller.py --execute mvp-nextjs \
   --inputs '{"project_name": "my-app"}'
-```
-
----
-
-## Architecture
-
-```
-agent-orchestration-architecture/
-├── skill_controller.py      # Skill execution engine
-├── workflow_controller.py   # Multi-skill orchestrator
-├── schemas/
-│   ├── skill-schema.json    # Skill validation schema
-│   └── workflow-schema.json # Workflow validation schema
-├── SKILLS/                  # 19 skill definitions
-│   ├── yolo26-detection/
-│   │   └── skill.json
-│   ├── sam3-segmentation/
-│   ├── mvp-nextjs/
-│   └── ...
-├── WORKFLOWS/               # Multi-skill pipelines
-└── TEMPLATES/               # Project templates
-```
-
-### Execution Flow
-
-```
-┌─────────────────┐     ┌──────────────────┐     ┌─────────────────┐
-│  Load Skill     │────▶│ Validate Schema  │────▶│ Check Pre-reqs  │
-│  (skill.json)   │     │ (JSON Schema)    │     │ (commands, etc) │
-└─────────────────┘     └──────────────────┘     └─────────────────┘
-                                                          │
-┌─────────────────┐     ┌──────────────────┐     ┌───────▼─────────┐
-│  Log Results    │◀────│ Run Verification │◀────│ Execute Steps   │
-│  (JSON file)    │     │ (assertions)     │     │ (sequential)    │
-└─────────────────┘     └──────────────────┘     └─────────────────┘
-                                                          │
-                                                 ┌───────▼─────────┐
-                                                 │ Rollback on     │
-                                                 │ Failure         │
-                                                 └─────────────────┘
 ```
 
 ---
@@ -174,7 +233,7 @@ Each skill is a JSON file with this structure:
     {
       "id": "run_inference",
       "type": "bash", 
-      "cmd": "python -c '...'",
+      "cmd": "python run_sam3.py --source {source}",
       "timeout": 600
     }
   ],
@@ -191,6 +250,17 @@ Each skill is a JSON file with this structure:
 
 ### Autonomy Levels
 
+```mermaid
+graph LR
+    A[delegado] -->|"Autonomous<br/>Confirms on errors only"| B[Low Risk Tasks]
+    C[co-pilot] -->|"Confirms major changes"| D[Complex Tasks]
+    E[asistente] -->|"Confirms every step"| F[Critical Operations]
+    
+    style A fill:#c8e6c9
+    style C fill:#fff3e0
+    style E fill:#ffcdd2
+```
+
 | Level | Behavior | Use Case |
 |-------|----------|----------|
 | `delegado` | Runs autonomously, confirms only on errors | Well-defined, low-risk tasks |
@@ -206,9 +276,8 @@ Each skill is a JSON file with this structure:
    mkdir SKILLS/my-skill
    ```
 
-2. **Create skill.json**
+2. **Create skill.json** following the schema
    ```bash
-   # Use the schema for validation
    cat schemas/skill-schema.json
    ```
 
@@ -228,12 +297,20 @@ Each skill is a JSON file with this structure:
 
 Chain multiple skills together:
 
-```bash
-python workflow_controller.py --execute new-project-web \
-  --inputs '{"project_name": "my-saas"}'
+```mermaid
+graph LR
+    A[dataset-prep] --> B[training-pipeline]
+    B --> C[model-evaluation]
+    C --> D{Metrics OK?}
+    D -->|Yes| E[edge-deployment]
+    D -->|No| F[hyperparameter-tuning]
+    F --> B
 ```
 
-Workflows are defined in `WORKFLOWS/` as JSON or Markdown files.
+```bash
+python workflow_controller.py --execute ml-experiment \
+  --inputs '{"dataset": "coco", "model": "yolo26n"}'
+```
 
 ---
 
@@ -246,55 +323,4 @@ All executions are logged to `outputs/skill_logs/`:
   "timestamp": "2026-01-19T10:19:48",
   "skill": "sam3-segmentation",
   "version": "2.0.0",
-  "success": true,
-  "total_duration_ms": 1234,
-  "steps": [
-    {"id": "verify_install", "status": "completed", "duration_ms": 150}
-  ]
-}
-```
-
----
-
-## Integration
-
-### With Claude Code / Cursor / Windsurf
-
-Add to your `CLAUDE.md` or system prompt:
-
-```markdown
-## Skills System
-
-Use `python skill_controller.py --execute <skill>` for structured tasks.
-Available skills: yolo26-detection, sam3-segmentation, mvp-nextjs, etc.
-```
-
-### With MCP (Model Context Protocol)
-
-Skills can require Context7 libraries:
-
-```json
-{
-  "context7_required": ["/ultralytics/ultralytics", "/pytorch/pytorch"]
-}
-```
-
-The controller loads documentation before execution.
-
----
-
-## Tech Stack Reference
-
-| Layer | Technologies |
-|-------|--------------|
-| Frontend | Next.js 15, React 19, Tailwind 4, shadcn/ui |
-| Backend | FastAPI, Pydantic v2, Supabase |
-| ML/CV | PyTorch, Ultralytics, YOLO, SAM3 |
-| MLOps | MLflow, DVC, Evidently AI |
-
----
-
-## References
-
-- [Anthropic: Building Effective Agents](https://www.anthropic.com/research/building-effective-agents)
-- [M
+  "succe
