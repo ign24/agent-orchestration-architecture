@@ -1,7 +1,7 @@
 # AI Agent Workspace System
 
 > **Version:** 1.0.0  
-> **Workspace:** `C:\Proyectos`  
+> **Workspace:** `/your/workspace`  
 > **Created:** January 2026  
 > **Technology Stack:** Next.js 15, React 19, Tailwind CSS 4, FastAPI, PyTorch, Ultralytics, Supervision, Supabase
 
@@ -142,7 +142,7 @@ The system automatically detects your intent and routes to the appropriate skill
 
 ### Skills (Atomic Tasks)
 
-**Location:** `C:\Proyectos\SKILLS\`
+**Location:** `/your/workspace\SKILLS\`
 
 Skills are self-contained, reusable tasks that perform a single, well-defined action.
 
@@ -178,7 +178,7 @@ delegado | co-pilot | asistente
 
 ### Workflows (Multi-Step Processes)
 
-**Location:** `C:\Proyectos\WORKFLOWS\`
+**Location:** `/your/workspace\WORKFLOWS\`
 
 Workflows orchestrate multiple skills with checkpoints and decision points.
 
@@ -210,7 +210,7 @@ What to save in PROJECT_CONTEXT.md
 
 ### Automatic Routing
 
-**Location:** `C:\Proyectos\AGENTS.md` (Routing section)
+**Location:** `/your/workspace\AGENTS.md` (Routing section)
 
 The system automatically detects user intent and routes to appropriate skills or workflows:
 
@@ -449,7 +449,7 @@ ML/CV:
 
 ```bash
 # 1. Copy PROJECT_CONTEXT.md template
-cp C:\Proyectos\TEMPLATES\PROJECT_CONTEXT.md [project]/
+cp /your/workspace\TEMPLATES\PROJECT_CONTEXT.md [project]/
 
 # 2. Complete the template
 # Edit [project]/PROJECT_CONTEXT.md
@@ -529,10 +529,10 @@ To report issues or suggest improvements:
 | File | Location | Content |
 |------|----------|---------|
 | `CLAUDE.md` | `C:\Users\nnznn\.claude\` | Global agent configuration |
-| `AGENTS.md` | `C:\Proyectos\` | Global rules and routing |
-| `SKILLS/README.md` | `C:\Proyectos\SKILLS\` | Skills registry |
-| `WORKFLOWS/README.md` | `C:\Proyectos\WORKFLOWS\` | Workflows registry |
-| `AGENT_SYSTEM_ARCHITECTURE.md` | `C:\Proyectos\` | Architecture documentation |
+| `AGENTS.md` | `/your/workspace\` | Global rules and routing |
+| `SKILLS/README.md` | `/your/workspace\SKILLS\` | Skills registry |
+| `WORKFLOWS/README.md` | `/your/workspace\WORKFLOWS\` | Workflows registry |
+| `AGENT_SYSTEM_ARCHITECTURE.md` | `/your/workspace\` | Architecture documentation |
 
 ### External References
 

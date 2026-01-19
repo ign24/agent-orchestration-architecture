@@ -1,6 +1,6 @@
 # Agent System Architecture - Documentación Completa
 
-> Workspace: C:\Proyectos
+> Workspace: /your/workspace
 > Perfil: AI Engineering Fullstack / Indie Hacker
 > Creado: Enero 2026
 > Última actualización: 2026-01-17
@@ -22,7 +22,7 @@ Sistema de agentes, skills y workflows diseñado para:
 ## Estructura del Sistema
 
 ```
-C:\Proyectos\
+/your/workspace\
 │
 ├── .claude/
 │   └── CLAUDE.md                    # Config global del agente
@@ -388,7 +388,7 @@ Output: Bug resuelto
 
 ## Archivos de Configuración
 
-### C:\Proyectos\AGENTS.md
+### /your/workspace\AGENTS.md
 Reglas globales, routing table, registry de skills/workflows.
 
 ### C:\Users\nnznn\.claude\CLAUDE.md

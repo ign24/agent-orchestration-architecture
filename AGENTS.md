@@ -559,7 +559,7 @@ Las reglas del proyecto sobreescriben las globales.
 
 ### Skills (Tareas Atómicas)
 
-Los skills son tareas reutilizables definidas en `C:\Proyectos\SKILLS\`.
+Los skills son tareas reutilizables definidas en `/your/workspace\SKILLS\`.
 
 **Invocar:** `Ejecutar skill: [nombre]`
 
@@ -652,7 +652,7 @@ Agregar `use context7` al prompt, o invocar:
 
 Cada proyecto debe tener un `PROJECT_CONTEXT.md` en su raíz.
 
-**Template:** `C:\Proyectos\TEMPLATES\PROJECT_CONTEXT.md`
+**Template:** `/your/workspace\TEMPLATES\PROJECT_CONTEXT.md`
 
 ### Al Iniciar Sesión
 1. Leer `PROJECT_CONTEXT.md`

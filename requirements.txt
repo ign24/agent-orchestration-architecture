@@ -1,0 +1,13 @@
+# Agent Orchestration System Requirements
+# Python 3.11+
+
+# Core
+jsonschema>=4.20.0
+
+# Optional - for CV/ML skills
+# ultralytics>=8.3.0
+# torch>=2.0.0
+# opencv-python>=4.8.0
+
+# Optional - for development skills
+# httpx>=0.25.0
