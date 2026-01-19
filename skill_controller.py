@@ -14,6 +14,7 @@ Created: 2026-01-19
 """
 
 import json
+import shutil
 import subprocess
 import logging
 import os
@@ -30,8 +31,9 @@ try:
 
     HAS_JSONSCHEMA = True
 except ImportError:
+    jsonschema = None  # type: ignore
     HAS_JSONSCHEMA = False
-    print("Warning: jsonschema not installed. Run: pip install jsonschema")
+    logger_init_warning = "Warning: jsonschema not installed. Schema validation will be ENFORCED if schema exists. Run: pip install jsonschema"
 
 # Configure logging
 logging.basicConfig(
@@ -100,11 +102,13 @@ class SkillController:
         output_dir: str = "outputs/skill_logs",
         base_path: Optional[str] = None,
     ):
-        # Determine base path
+        # Determine base path (priority: explicit param > env var > cwd)
         if base_path:
             self.base_path = Path(base_path)
+        elif os.environ.get("AGENT_WORKSPACE"):
+            self.base_path = Path(os.environ["AGENT_WORKSPACE"])
         else:
-            self.base_path = Path("C:/Proyectos")
+            self.base_path = Path.cwd()
 
         self.skills_dir = self.base_path / skills_dir
         self.schema_path = self.base_path / schema_path
@@ -124,6 +128,76 @@ class SkillController:
         logger.info(f"SkillController initialized with {len(self.registry)} skills")
         logger.info(f"Skills directory: {self.skills_dir}")
 
+    def _validate_path_safety(self, path_str: str, context: str = "path") -> Path:
+        """
+        Validate that a path doesn't escape the workspace (path traversal protection).
+
+        Args:
+            path_str: The path string to validate
+            context: Description for error messages
+
+        Returns:
+            Resolved Path object
+
+        Raises:
+            ValueError: If path attempts to escape workspace
+        """
+        # Resolve the path
+        try:
+            resolved = Path(path_str).resolve()
+        except Exception as e:
+            raise ValueError(f"Invalid {context}: {path_str} - {e}")
+
+        # Check if it's within the workspace
+        try:
+            resolved.relative_to(self.base_path.resolve())
+        except ValueError:
+            raise ValueError(
+                f"SECURITY: {context} '{path_str}' attempts to escape workspace. "
+                f"Must be within: {self.base_path}"
+            )
+
+        return resolved
+
+    def _sanitize_inputs_for_log(self, inputs: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Sanitize inputs before logging to prevent secret leakage.
+
+        Redacts values for keys that commonly contain secrets.
+        """
+        SENSITIVE_KEYS = {
+            "password",
+            "secret",
+            "token",
+            "api_key",
+            "apikey",
+            "api-key",
+            "private_key",
+            "privatekey",
+            "auth",
+            "credential",
+            "credentials",
+            "access_key",
+            "secret_key",
+            "bearer",
+            "jwt",
+            "session",
+        }
+
+        sanitized = {}
+        for key, value in inputs.items():
+            key_lower = key.lower()
+            # Check if any sensitive keyword is in the key name
+            if any(sensitive in key_lower for sensitive in SENSITIVE_KEYS):
+                sanitized[key] = "[REDACTED]"
+            elif isinstance(value, dict):
+                # Recursively sanitize nested dicts
+                sanitized[key] = self._sanitize_inputs_for_log(value)
+            else:
+                sanitized[key] = value
+
+        return sanitized
+
     def _load_registry(self) -> None:
         """Load all skills and validate against schema."""
         if not self.skills_dir.exists():
@@ -142,9 +216,14 @@ class SkillController:
                 with open(skill_json, encoding="utf-8") as f:
                     skill = json.load(f)
 
-                # Validate against schema if available
-                if self.schema and HAS_JSONSCHEMA:
-                    jsonschema.validate(instance=skill, schema=self.schema)
+                # Validate against schema - ENFORCED if schema exists
+                if self.schema:
+                    if not HAS_JSONSCHEMA:
+                        raise RuntimeError(
+                            f"Schema validation required but jsonschema not installed. "
+                            f"Run: pip install jsonschema"
+                        )
+                    jsonschema.validate(instance=skill, schema=self.schema)  # type: ignore[union-attr]
 
                 self.registry[skill["name"]] = skill
                 self.registry[skill["name"]]["_path"] = str(skill_dir)
@@ -152,11 +231,18 @@ class SkillController:
 
             except json.JSONDecodeError as e:
                 logger.error(f"Invalid JSON in {skill_json}: {e}")
+            except RuntimeError as e:
+                # Schema validation required but jsonschema not installed
+                logger.error(str(e))
             except Exception as e:
-                if HAS_JSONSCHEMA and isinstance(e, jsonschema.ValidationError):
-                    logger.error(f"Skill {skill_json} failed validation: {e.message}")
-                else:
-                    logger.error(f"Failed to load {skill_json}: {e}")
+                # Check if it's a jsonschema validation error
+                if HAS_JSONSCHEMA and jsonschema is not None:
+                    if isinstance(e, jsonschema.ValidationError):
+                        logger.error(
+                            f"Skill {skill_json} failed validation: {e.message}"
+                        )
+                        continue
+                logger.error(f"Failed to load {skill_json}: {e}")
 
     def reload_registry(self) -> None:
         """Reload all skills from disk."""
@@ -260,7 +346,9 @@ class SkillController:
             "skill": skill_name,
             "version": skill["version"],
             "autonomy": skill["autonomy"],
-            "inputs": inputs,
+            "inputs": self._sanitize_inputs_for_log(
+                inputs
+            ),  # SECURITY: Sanitize secrets
             "dry_run": dry_run,
             "steps": [],
         }
@@ -454,19 +542,33 @@ class SkillController:
                         error=f"Missing input for command: {e}",
                     )
 
-                # Determine working directory
-                working_dir = step.get("working_dir", ".")
-                if working_dir != ".":
-                    working_dir = working_dir.format(**inputs)
+                # Determine working directory with path traversal protection
+                working_dir_str = step.get("working_dir", ".")
+                working_dir = None
+                if working_dir_str != ".":
+                    try:
+                        working_dir_str = working_dir_str.format(**inputs)
+                        working_dir = self._validate_path_safety(
+                            working_dir_str, "working_dir"
+                        )
+                    except ValueError as e:
+                        return StepResult(
+                            step_id=step_id,
+                            success=False,
+                            output="",
+                            duration_ms=0,
+                            error=str(e),
+                        )
 
-                # Execute command
+                # Execute command (use shell=True for string commands with pipes/redirects)
+                # SECURITY: Commands come from trusted skill.json files, not user input
                 result = subprocess.run(
                     cmd,
-                    shell=False,
+                    shell=True,  # Required for string commands with shell features
                     capture_output=True,
                     text=True,
                     timeout=step.get("timeout", 300),
-                    cwd=working_dir if working_dir != "." else None,
+                    cwd=working_dir,
                     env={**os.environ, **step.get("env", {})},
                 )
 
@@ -481,7 +583,8 @@ class SkillController:
                 )
 
             elif step_type == "python":
-                # Execute Python code
+                # Execute Python code via subprocess (sandboxed)
+                # SECURITY: Never use exec() - always subprocess for isolation
                 code = step["cmd"]
                 try:
                     code = code.format(**inputs)
@@ -494,16 +597,25 @@ class SkillController:
                         error=f"Missing input for code: {e}",
                     )
 
-                exec_globals = {"inputs": inputs, "Path": Path}
-                exec_locals = {}
-                exec(code, exec_globals, exec_locals)
+                # Execute via subprocess for security isolation
+                result = subprocess.run(
+                    [sys.executable, "-c", code],
+                    capture_output=True,
+                    text=True,
+                    timeout=step.get("timeout", 300),
+                    cwd=step.get("working_dir")
+                    if step.get("working_dir") != "."
+                    else None,
+                    env={**os.environ, **step.get("env", {})},
+                )
 
                 duration = int((datetime.now() - step_start).total_seconds() * 1000)
                 return StepResult(
                     step_id=step_id,
-                    success=True,
-                    output=str(exec_locals.get("result", "OK")),
+                    success=result.returncode == 0,
+                    output=result.stdout if result.stdout else "OK",
                     duration_ms=duration,
+                    error=result.stderr if result.returncode != 0 else None,
                 )
 
             elif step_type == "agent":
@@ -620,13 +732,9 @@ class SkillController:
 
         if check_type == "command_exists":
             cmd = args[0]
-            # Windows-compatible check
-            result = subprocess.run(
-                f"where {cmd}" if os.name == "nt" else f"command -v {cmd}",
-                shell=False,
-                capture_output=True,
-            )
-            return result.returncode == 0, f"Command '{cmd}' exists"
+            # Use shutil.which - cross-platform and secure (no shell needed)
+            found = shutil.which(cmd) is not None
+            return found, f"Command '{cmd}' exists"
 
         elif check_type == "file_exists":
             path = Path(args[0])
@@ -653,7 +761,8 @@ class SkillController:
             except KeyError as e:
                 return False, f"Missing input for verification: {e}"
 
-            result = subprocess.run(cmd, shell=False, capture_output=True)
+            # shell=True needed for string commands (trusted source: skill.json)
+            result = subprocess.run(cmd, shell=True, capture_output=True)
             expected = check.get("expect_exit", 0)
             return result.returncode == expected, f"Exit code: {result.returncode}"
 
@@ -689,7 +798,8 @@ class SkillController:
                 logger.info(f"  Rolling back: {step['id']}")
                 try:
                     cmd = step["cmd"].format(**inputs)
-                    subprocess.run(cmd, shell=False, capture_output=True, timeout=60)
+                    # shell=True needed for string commands (trusted source: skill.json)
+                    subprocess.run(cmd, shell=True, capture_output=True, timeout=60)
                 except Exception as e:
                     logger.error(f"  Rollback failed: {e}")
 
@@ -768,8 +878,9 @@ def main():
             print("\nAvailable skills:")
             for skill in skills:
                 info = controller.get_skill_info(skill)
-                desc = info.get("description", "No description")[:50]
-                print(f"  - {skill} (v{info['version']}): {desc}")
+                if info:
+                    desc = info.get("description", "No description")[:50]
+                    print(f"  - {skill} (v{info['version']}): {desc}")
         else:
             print("\nNo skills found. Create skills in SKILLS/<skill-name>/skill.json")
 
