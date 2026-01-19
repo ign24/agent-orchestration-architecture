@@ -1,0 +1,139 @@
+{
+  "name": "data-augmentation-advanced",
+  "version": "1.0.0",
+  "description": "Advanced data augmentation for CV 2026 with temporal-aware, video-specific, and diffusion-based methods",
+  "autonomy": "delegado",
+  "context7_required": [],
+  "pre_requisites": [
+    {
+      "check": "command_exists",
+      "args": ["python"],
+      "error_message": "Python 3.11+ required"
+    },
+    {
+      "check": "dir_exists",
+      "args": ["{dataset_path}"],
+      "error_message": "Dataset directory not found"
+    }
+  ],
+  "inputs": {
+    "dataset_path": {
+      "type": "string",
+      "required": true,
+      "description": "Path to YOLO format dataset"
+    },
+    "data_format": {
+      "type": "string",
+      "required": false,
+      "default": "image",
+      "enum": ["image", "video"],
+      "description": "Dataset format: image or video"
+    },
+    "augmentation_policy": {
+      "type": "string",
+      "required": false,
+      "default": "auto",
+      "enum": ["auto", "aggressive", "conservative", "custom"],
+      "description": "Augmentation intensity policy"
+    },
+    "enable_temporal": {
+      "type": "boolean",
+      "required": false,
+      "default": false,
+      "description": "Enable temporal-aware augmentation (for video datasets)"
+    },
+    "enable_video_specific": {
+      "type": "boolean",
+      "required": false,
+      "default": false,
+      "description": "Enable video-specific augmentations (motion blur, frame dropout)"
+    },
+    "use_diffusion": {
+      "type": "boolean",
+      "required": false,
+      "default": false,
+      "description": "Enable diffusion-based augmentation (CutMix, MixUp)"
+    },
+    "max_augmentations_per_sample": {
+      "type": "number",
+      "required": false,
+      "default": 5,
+      "description": "Maximum augmentations per original sample"
+    }
+  },
+  "steps": [
+    {
+      "id": "install_albumentations",
+      "type": "bash",
+      "description": "Install Albumentations for advanced augmentation",
+      "cmd": "pip install albumentations imgaug",
+      "timeout": 120
+    },
+    {
+      "id": "analyze_dataset",
+      "type": "agent",
+      "description": "Analyze dataset distribution and suggest augmentations",
+      "timeout": 60
+    },
+    {
+      "id": "configure_temporal",
+      "type": "agent",
+      "description": "Configure temporal-aware augmentation for video data",
+      "timeout": 30
+    },
+    {
+      "id": "configure_video_specific",
+      "type": "agent",
+      "description": "Configure video-specific augmentations (motion, frame dropout)",
+      "timeout": 30
+    },
+    {
+      "id": "configure_diffusion",
+      "type": "agent",
+      "description": "Configure diffusion-based augmentation (CutMix, MixUp, Mosaic)",
+      "timeout": 30
+    },
+    {
+      "id": "apply_augmentations",
+      "type": "bash",
+      "description": "Apply augmentations to dataset",
+      "cmd": "python scripts/advanced_augment.py --dataset {dataset_path} --policy {augmentation_policy} --max-aug {max_augmentations_per_sample} --output {dataset_path}_augmented",
+      "timeout": 1800
+    },
+    {
+      "id": "validate_augmentations",
+      "type": "bash",
+      "description": "Validate augmented dataset quality",
+      "cmd": "python scripts/validate_augmentation.py --original {dataset_path} --augmented {dataset_path}_augmented",
+      "timeout": 300
+    },
+    {
+      "id": "create_split",
+      "type": "bash",
+      "description": "Split augmented dataset into train/val",
+      "cmd": "python scripts/split_dataset.py --source {dataset_path}_augmented --output {dataset_path}_final --ratio 0.8 0.2 --seed 42",
+      "timeout": 120
+    }
+  ],
+  "verification": [
+    {
+      "type": "dir_exists",
+      "path": "{dataset_path}_final/train/images"
+    },
+    {
+      "type": "dir_exists",
+      "path": "{dataset_path}_final/val/images"
+    },
+    {
+      "type": "bash",
+      "cmd": "python -c \"import albumentations; print(f'albumentations: {albumentations.__version__}')\"",
+      "expect_exit": 0
+    }
+  ],
+  "metadata": {
+    "author": "Nacho @ Factor.com.ar",
+    "created": "2026-01-19",
+    "updated": "2026-01-19",
+    "tags": ["augmentation", "albumentations", "temporal", "diffusion", "video-cv"]
+  }
+}

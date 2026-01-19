@@ -1,0 +1,114 @@
+{
+  "name": "hyperparameter-tuning",
+  "version": "1.0.0",
+  "description": "Auto-tuning of YOLO26 hyperparameters with genetic algorithms and multi-objective optimization",
+  "autonomy": "delegado",
+  "context7_required": ["/ultralytics/ultralytics"],
+  "pre_requisites": [
+    {
+      "check": "file_exists",
+      "args": ["{config_path}"],
+      "error_message": "Training config not found"
+    },
+    {
+      "check": "command_exists",
+      "args": ["python"],
+      "error_message": "Python required"
+    }
+  ],
+  "inputs": {
+    "config_path": {
+      "type": "string",
+      "required": true,
+      "description": "Path to base training config YAML"
+    },
+    "search_space": {
+      "type": "object",
+      "required": false,
+      "description": "Hyperparameter search space (overrides default)"
+    },
+    "optimization_target": {
+      "type": "string",
+      "required": false,
+      "default": "map",
+      "enum": ["map", "speed", "size", "multi-objective"],
+      "description": "Primary optimization target"
+    },
+    "max_trials": {
+      "type": "number",
+      "required": false,
+      "default": 50,
+      "description": "Maximum number of optimization trials"
+    },
+    "compute_budget": {
+      "type": "number",
+      "required": false,
+      "default": 24,
+      "description": "Maximum hours for optimization"
+    },
+    "use_bayesian": {
+      "type": "boolean",
+      "required": false,
+      "default": true,
+      "description": "Use Bayesian optimization instead of genetic algorithm"
+    }
+  },
+  "steps": [
+    {
+      "id": "define_search_space",
+      "type": "agent",
+      "description": "Define hyperparameter search space",
+      "timeout": 60
+    },
+    {
+      "id": "configure_optimization",
+      "type": "bash",
+      "description": "Configure YOLO26 hyperparameter optimization",
+      "cmd": "yolo tune model=yolo26n.pt data={config_path} trials={max_trials} patience=20 epochs=100",
+      "timeout": 3600
+    },
+    {
+      "id": "bayesian_search",
+      "type": "bash",
+      "description": "Run Bayesian optimization if enabled",
+      "cmd": "yolo tune model=yolo26n.pt data={config_path} optimizer=BayesOptuna epochs=100",
+      "timeout": 3600
+    },
+    {
+      "id": "early_stopping",
+      "type": "agent",
+      "description": "Configure early stopping based on convergence",
+      "timeout": 30
+    },
+    {
+      "id": "multi_objective",
+      "type": "agent",
+      "description": "Setup multi-objective optimization if target is 'multi-objective'",
+      "timeout": 30
+    },
+    {
+      "id": "select_best",
+      "type": "bash",
+      "description": "Select best hyperparameters from optimization",
+      "cmd": "python scripts/select_best_params.py --tune_runs outputs/tuning/ --target {optimization_target}",
+      "timeout": 60
+    }
+  ],
+  "verification": [
+    {
+      "type": "file_exists",
+      "path": "outputs/tuning/best_params.yaml"
+    },
+    {
+      "type": "bash",
+      "cmd": "python -c \"import yaml; print(yaml.safe_load(open('outputs/tuning/best_params.yaml')))\"",
+      "expect_exit": 0
+    }
+  ],
+  "metadata": {
+    "author": "Nacho @ Factor.com.ar",
+    "created": "2026-01-19",
+    "updated": "2026-01-19",
+    "tags": ["hyperparameter", "tuning", "optimization", "yolo26", "bayesian"]
+  }
+}

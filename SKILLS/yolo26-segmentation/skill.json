@@ -1,0 +1,101 @@
+{
+  "name": "yolo26-segmentation",
+  "version": "1.0.0",
+  "description": "Train YOLO26 instance segmentation with semantic segmentation loss and multi-scale proto modules",
+  "autonomy": "co-pilot",
+  "context7_required": ["/ultralytics/ultralytics"],
+  "pre_requisites": [
+    {
+      "check": "command_exists",
+      "args": ["python"],
+      "error_message": "Python 3.11+ required"
+    },
+    {
+      "check": "dir_exists",
+      "args": ["{dataset_path}"],
+      "error_message": "Dataset directory not found"
+    }
+  ],
+  "inputs": {
+    "model_size": {
+      "type": "string",
+      "required": false,
+      "default": "n",
+      "enum": ["n", "s", "m", "l", "x"],
+      "description": "Model size variant"
+    },
+    "dataset_path": {
+      "type": "string",
+      "required": true,
+      "description": "Path to YOLO format dataset"
+    },
+    "num_classes": {
+      "type": "number",
+      "required": true,
+      "description": "Number of classes in dataset"
+    },
+    "class_names": {
+      "type": "array",
+      "required": true,
+      "description": "Array of class names"
+    }
+  },
+  "steps": [
+    {
+      "id": "verify_dataset",
+      "type": "bash",
+      "description": "Validate YOLO segmentation dataset structure",
+      "cmd": "python scripts/validate_dataset.py {dataset_path}",
+      "timeout": 60
+    },
+    {
+      "id": "create_data_yaml",
+      "type": "agent",
+      "description": "Create data.yaml with classes",
+      "timeout": 30
+    },
+    {
+      "id": "load_segmentation_model",
+      "type": "python",
+      "description": "Load YOLO26-seg model",
+      "cmd": "from ultralytics import YOLO; model = YOLO('yolo26{model_size}-seg.pt'); print(f'Model: {model_size}-seg')",
+      "timeout": 30
+    },
+    {
+      "id": "configure_proto_modules",
+      "type": "agent",
+      "description": "Configure multi-scale proto modules for high-quality masks"
+    },
+    {
+      "id": "train_segmentation",
+      "type": "bash",
+      "description": "Train YOLO26-seg model",
+      "cmd": "yolo train model=yolo26{model_size}-seg.pt data={dataset_path}/data.yaml epochs=100 imgsz=640",
+      "timeout": 3600
+    },
+    {
+      "id": "validate_masks",
+      "type": "bash",
+      "description": "Validate segmentation masks quality",
+      "cmd": "yolo val model=runs/train/weights/best.pt data={dataset_path}/data.yaml",
+      "timeout": 300
+    }
+  ],
+  "verification": [
+    {
+      "type": "file_exists",
+      "path": "runs/train/weights/best.pt"
+    },
+    {
+      "type": "bash",
+      "cmd": "python -c \"from ultralytics import YOLO; metrics = YOLO('runs/train/weights/best.pt').val(); print(f'mAPmask: {{metrics.seg.map:.4f}}')\"",
+      "expect_exit": 0
+    }
+  ],
+  "metadata": {
+    "author": "Nacho @ Factor.com.ar",
+    "created": "2026-01-19",
+    "updated": "2026-01-19",
+    "tags": ["yolo26", "segmentation", "masks", "instance-seg"]
+  }
+}

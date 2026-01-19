@@ -1,0 +1,89 @@
+{
+  "name": "yoloe-open-vocabulary",
+  "version": "1.0.0",
+  "description": "Open-vocabulary detection/segmentation with YOLOE-26 using text, visual, or prompt-free modes",
+  "autonomy": "co-pilot",
+  "context7_required": ["/ultralytics/ultralytics"],
+  "pre_requisites": [
+    {
+      "check": "command_exists",
+      "args": ["python"],
+      "error_message": "Python 3.11+ required"
+    }
+  ],
+  "inputs": {
+    "model_size": {
+      "type": "string",
+      "required": false,
+      "default": "s",
+      "enum": ["n", "s", "m", "l", "x"],
+      "description": "Model size variant"
+    },
+    "prompt_mode": {
+      "type": "string",
+      "required": false,
+      "default": "text",
+      "enum": ["text", "visual", "prompt-free"],
+      "description": "Prompt mode: text, visual, or prompt-free with built-in 4,585 classes"
+    },
+    "custom_concepts": {
+      "type": "array",
+      "required": false,
+      "description": "Custom concept list for text/visual prompts (e.g., ['person', 'bus'])"
+    },
+    "use_pf_variant": {
+      "type": "boolean",
+      "required": false,
+      "default": false,
+      "description": "Use prompt-free variant with built-in vocabulary"
+    }
+  },
+  "steps": [
+    {
+      "id": "install_yoloe",
+      "type": "bash",
+      "description": "Install ultralytics with YOLOE support",
+      "cmd": "pip install --upgrade ultralytics",
+      "timeout": 120
+    },
+    {
+      "id": "load_yoloe_model",
+      "type": "python",
+      "description": "Load YOLOE-26 model",
+      "cmd": "from ultralytics import YOLO; model = YOLO('yoloe-26{model_size}-seg.pt'); print(f'Model: yoloe-26{model_size}-seg')",
+      "timeout": 30
+    },
+    {
+      "id": "configure_text_prompts",
+      "type": "agent",
+      "description": "Set text prompts if mode is text",
+      "timeout": 30
+    },
+    {
+      "id": "configure_visual_prompts",
+      "type": "agent",
+      "description": "Set visual prompts with bboxes if mode is visual",
+      "timeout": 30
+    },
+    {
+      "id": "run_inference",
+      "type": "bash",
+      "description": "Run open-vocabulary inference",
+      "cmd": "yolo predict model=yoloe-26{model_size}-seg.pt source={source_path} conf=0.25",
+      "timeout": 300
+    }
+  ],
+  "verification": [
+    {
+      "type": "bash",
+      "cmd": "python -c \"from ultralytics import YOLO; YOLO('yoloe-26s-seg.pt').predict('test.jpg')\"",
+      "expect_exit": 0
+    }
+  ],
+  "metadata": {
+    "author": "Nacho @ Factor.com.ar",
+    "created": "2026-01-19",
+    "updated": "2026-01-19",
+    "tags": ["yoloe-26", "open-vocabulary", "text-prompt", "visual-prompt"]
+  }
+}

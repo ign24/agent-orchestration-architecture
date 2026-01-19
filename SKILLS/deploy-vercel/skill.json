@@ -1,0 +1,70 @@
+{
+  "name": "deploy-vercel",
+  "version": "1.0.0",
+  "description": "Deploy Next.js project to Vercel",
+  "autonomy": "asistente",
+  "context7_required": ["/vercel/next.js"],
+  "pre_requisites": [
+    {
+      "check": "file_exists",
+      "args": ["{project_path}/package.json"],
+      "error_message": "package.json not found"
+    }
+  ],
+  "inputs": {
+    "project_path": {
+      "type": "string",
+      "required": true,
+      "description": "Path to project"
+    },
+    "environment": {
+      "type": "string",
+      "required": false,
+      "default": "preview",
+      "enum": ["preview", "production"]
+    }
+  },
+  "steps": [
+    {
+      "id": "verify_build",
+      "type": "bash",
+      "description": "Test local build",
+      "cmd": "bun run build",
+      "working_dir": "{project_path}",
+      "timeout": 180
+    },
+    {
+      "id": "check_env_vars",
+      "type": "agent",
+      "description": "Verify environment variables",
+      "cmd": "Check .env.example and verify required vars are documented"
+    },
+    {
+      "id": "deploy_preview",
+      "type": "bash",
+      "description": "Deploy to Vercel preview",
+      "cmd": "vercel",
+      "working_dir": "{project_path}",
+      "timeout": 300
+    },
+    {
+      "id": "deploy_production",
+      "type": "checkpoint",
+      "description": "Deploy to production requires confirmation",
+      "checkpoint_message": "Deploy to production? This will affect live traffic."
+    }
+  ],
+  "verification": [
+    {
+      "type": "bash",
+      "cmd": "cd {project_path} && bun run build",
+      "expect_exit": 0
+    }
+  ],
+  "metadata": {
+    "author": "Nacho @ Factor.com.ar",
+    "created": "2026-01-19",
+    "updated": "2026-01-19",
+    "tags": ["deploy", "vercel", "ci/cd"]
+  }
+}

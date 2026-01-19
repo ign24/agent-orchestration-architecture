@@ -1,0 +1,121 @@
+{
+  "name": "fvm-fine-tuning",
+  "version": "1.0.0",
+  "description": "Parameter-efficient fine-tuning of Foundation Vision Models with PEFT methods (LoRA, DoRA, GaLore)",
+  "autonomy": "co-pilot",
+  "context7_required": ["/pytorch/pytorch"],
+  "pre_requisites": [
+    {
+      "check": "command_exists",
+      "args": ["python"],
+      "error_message": "Python 3.11+ required"
+    },
+    {
+      "check": "file_exists",
+      "args": ["{base_model}"],
+      "error_message": "Base model file not found"
+    }
+  ],
+  "inputs": {
+    "base_model": {
+      "type": "string",
+      "required": true,
+      "description": "Path to pre-trained FVM (SAM, CLIP, or similar)"
+    },
+    "peft_method": {
+      "type": "string",
+      "required": false,
+      "default": "lora",
+      "enum": ["lora", "dora", "galore", "adafactor"],
+      "description": "PEFT method for parameter-efficient tuning"
+    },
+    "rank": {
+      "type": "number",
+      "required": false,
+      "default": 16,
+      "description": "Adapter rank for LoRA/DoRA"
+    },
+    "target_task": {
+      "type": "string",
+      "required": true,
+      "description": "Target task: detection, segmentation, or classification"
+    },
+    "dataset_path": {
+      "type": "string",
+      "required": true,
+      "description": "Path to training dataset"
+    },
+    "max_epochs": {
+      "type": "number",
+      "required": false,
+      "default": 50,
+      "description": "Maximum training epochs"
+    },
+    "device_constraints": {
+      "type": "string",
+      "required": false,
+      "default": "auto",
+      "enum": ["auto", "cpu", "gpu", "edge"],
+      "description": "Hardware constraints for optimization"
+    }
+  },
+  "steps": [
+    {
+      "id": "install_peft",
+      "type": "bash",
+      "description": "Install PEFT libraries",
+      "cmd": "pip install peft bitsandbytes",
+      "timeout": 120
+    },
+    {
+      "id": "load_base_model",
+      "type": "python",
+      "description": "Load pre-trained FVM",
+      "cmd": "from transformers import AutoModel; model = AutoModel.from_pretrained('{base_model}'); print(f'Base model loaded')",
+      "timeout": 60
+    },
+    {
+      "id": "configure_peft",
+      "type": "agent",
+      "description": "Configure PEFT adapter (LoRA/DoRA/GaLore)",
+      "timeout": 30
+    },
+    {
+      "id": "setup_optimizer",
+      "type": "agent",
+      "description": "Setup optimizer for edge deployment (AdamW 8-bit, Sophia, etc.)",
+      "timeout": 30
+    },
+    {
+      "id": "run_fine_tuning",
+      "type": "bash",
+      "description": "Run parameter-efficient fine-tuning",
+      "cmd": "python scripts/fvm_finetune.py --base_model {base_model} --method {peft_method} --rank {rank} --dataset {dataset_path} --epochs {max_epochs}",
+      "timeout": 3600
+    },
+    {
+      "id": "benchmark_efficiency",
+      "type": "bash",
+      "description": "Benchmark FLOPs reduction vs full fine-tune",
+      "cmd": "python scripts/benchmark_peft.py --model outputs/fvm/adapter.safetensors --compare baseline",
+      "timeout": 300
+    }
+  ],
+  "verification": [
+    {
+      "type": "file_exists",
+      "path": "outputs/fvm/adapter.safetensors"
+    },
+    {
+      "type": "bash",
+      "cmd": "python -c \"from peft import PeftModel; model = PeftModel.from_pretrained('outputs/fvm/adapter.safetensors'); print(f'PEFT parameters: {model.num_parameters()}')\"",
+      "expect_exit": 0
+    }
+  ],
+  "metadata": {
+    "author": "Nacho @ Factor.com.ar",
+    "created": "2026-01-19",
+    "updated": "2026-01-19",
+    "tags": ["peft", "lora", "dora", "fine-tuning", "edge-optimized", "parameter-efficient"]
+  }
+}

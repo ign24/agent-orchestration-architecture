@@ -1,0 +1,76 @@
+{
+  "name": "debug-systematic",
+  "version": "1.0.0",
+  "description": "Systematic debugging methodology for bugs and errors",
+  "autonomy": "co-pilot",
+  "inputs": {
+    "project_path": {
+      "type": "string",
+      "required": true,
+      "description": "Project directory"
+    },
+    "error_description": {
+      "type": "string",
+      "required": true,
+      "description": "Description of the bug or error"
+    },
+    "stack": {
+      "type": "string",
+      "required": false,
+      "default": "unknown",
+      "enum": ["python", "nextjs", "fastapi", "unknown"]
+    }
+  },
+  "steps": [
+    {
+      "id": "collect_info",
+      "type": "checkpoint",
+      "description": "Gather information about the bug",
+      "checkpoint_message": "Bug Report: {error_description}. Provide steps to reproduce and error logs."
+    },
+    {
+      "id": "isolate_problem",
+      "type": "agent",
+      "description": "Identify scope and create minimal reproduction",
+      "cmd": "Search codebase for related files and create minimal test case"
+    },
+    {
+      "id": "run_diagnostics",
+      "type": "bash",
+      "description": "Run diagnostic commands",
+      "cmd": "cd {project_path} && git log --oneline -5 && git status",
+      "timeout": 10
+    },
+    {
+      "id": "verify_hypothesis",
+      "type": "agent",
+      "description": "Test hypothesis and identify root cause",
+      "cmd": "Analyze error and identify root cause with context7 if needed"
+    },
+    {
+      "id": "apply_fix",
+      "type": "checkpoint",
+      "description": "Confirm before applying fix",
+      "checkpoint_message": "Root cause identified. Apply fix?"
+    },
+    {
+      "id": "verify_fix",
+      "type": "agent",
+      "description": "Test that fix resolves the issue",
+      "cmd": "Run tests or reproduce scenario to verify fix works"
+    }
+  ],
+  "verification": [
+    {
+      "type": "bash",
+      "cmd": "cd {project_path} && git status",
+      "expect_exit": 0
+    }
+  ],
+  "metadata": {
+    "author": "Nacho @ Factor.com.ar",
+    "created": "2026-01-19",
+    "updated": "2026-01-19",
+    "tags": ["debug", "troubleshooting", "error-handling"]
+  }
+}

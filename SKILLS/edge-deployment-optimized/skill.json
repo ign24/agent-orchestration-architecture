@@ -1,0 +1,118 @@
+{
+  "name": "edge-deployment-optimized",
+  "version": "1.0.0",
+  "description": "Optimized YOLO26 deployment for edge devices with quantization, TensorRT, and latency benchmarks",
+  "autonomy": "co-pilot",
+  "context7_required": ["/ultralytics/ultralytics"],
+  "pre_requisites": [
+    {
+      "check": "file_exists",
+      "args": ["{model_path}"],
+      "error_message": "Model file not found"
+    },
+    {
+      "check": "command_exists",
+      "args": ["python"],
+      "error_message": "Python required"
+    }
+  ],
+  "inputs": {
+    "model_path": {
+      "type": "string",
+      "required": true,
+      "description": "Path to trained model (.pt file)"
+    },
+    "target_device": {
+      "type": "string",
+      "required": true,
+      "enum": ["jetson-nano", "jetson-orin", "raspberry-pi", "x86-cpu", "nvidia-gpu"],
+      "description": "Target edge device for deployment"
+    },
+    "quantization": {
+      "type": "string",
+      "required": false,
+      "default": "fp16",
+      "enum": ["fp32", "fp16", "int8"],
+      "description": "Quantization level"
+    },
+    "export_format": {
+      "type": "string",
+      "required": false,
+      "default": "onnx",
+      "enum": ["onnx", "tensorrt", "coreml", "tflite", "openvino"],
+      "description": "Export format for edge deployment"
+    },
+    "max_latency_ms": {
+      "type": "number",
+      "required": false,
+      "default": 33,
+      "description": "Target max latency in milliseconds (30fps = 33ms)"
+    },
+    "enable_optimization": {
+      "type": "boolean",
+      "required": false,
+      "default": true,
+      "description": "Enable TensorRT optimization for NVIDIA devices"
+    }
+  },
+  "steps": [
+    {
+      "id": "export_onnx",
+      "type": "bash",
+      "description": "Export YOLO26 to ONNX",
+      "cmd": "yolo export model={model_path} format=onnx opset=13 imgsz=640",
+      "timeout": 300
+    },
+    {
+      "id": "quantize_model",
+      "type": "bash",
+      "description": "Quantize model for edge deployment",
+      "cmd": "python scripts/quantize.py --model {model_path} --format {quantization}",
+      "timeout": 300
+    },
+    {
+      "id": "compile_tensorrt",
+      "type": "bash",
+      "description": "Compile to TensorRT for NVIDIA Jetson devices",
+      "cmd": "trtexec --onnx outputs/export/model.onnx --saveEngine outputs/deployment/model.trt --fp16 --workspace 4096",
+      "timeout": 600
+    },
+    {
+      "id": "benchmark_latency",
+      "type": "bash",
+      "description": "Benchmark inference latency on target device",
+      "cmd": "python scripts/benchmark_edge.py --model outputs/deployment/model.trt --device {target_device} --iterations 1000",
+      "timeout": 600
+    },
+    {
+      "id": "verify_latency",
+      "type": "agent",
+      "description": "Verify latency meets target ({max_latency_ms}ms)",
+      "timeout": 60
+    },
+    {
+      "id": "create_deployment_package",
+      "type": "bash",
+      "description": "Create deployment package",
+      "cmd": "tar -czf yolo26-edge-deploy.tar.gz outputs/deployment/ deployment_scripts/",
+      "timeout": 60
+    }
+  ],
+  "verification": [
+    {
+      "type": "file_exists",
+      "path": "outputs/deployment/model.trt"
+    },
+    {
+      "type": "bash",
+      "cmd": "python scripts/benchmark_edge.py --model outputs/deployment/model.trt --iterations 100 --check-latency {max_latency_ms}",
+      "expect_exit": 0
+    }
+  ],
+  "metadata": {
+    "author": "Nacho @ Factor.com.ar",
+    "created": "2026-01-19",
+    "updated": "2026-01-19",
+    "tags": ["edge", "quantization", "tensorrt", "deployment", "latency", "onnx"]
+  }
+}

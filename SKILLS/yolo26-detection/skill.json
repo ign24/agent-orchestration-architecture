@@ -1,0 +1,108 @@
+{
+  "name": "yolo26-detection",
+  "version": "1.0.0",
+  "description": "Train YOLO26 object detection with NMS-free inference, MuSGD optimizer, and ProgLoss+STAL",
+  "autonomy": "delegado",
+  "context7_required": ["/ultralytics/ultralytics"],
+  "pre_requisites": [
+    {
+      "check": "command_exists",
+      "args": ["python"],
+      "error_message": "Python 3.11+ required"
+    },
+    {
+      "check": "file_exists",
+      "args": ["{config_path}"],
+      "error_message": "Training config not found"
+    }
+  ],
+  "inputs": {
+    "model_size": {
+      "type": "string",
+      "required": false,
+      "default": "n",
+      "enum": ["n", "s", "m", "l", "x"],
+      "description": "Model size: n=nano, s=small, m=medium, l=large, x=extra-large"
+    },
+    "config_path": {
+      "type": "string",
+      "required": true,
+      "description": "Path to training config YAML"
+    },
+    "use_musgd": {
+      "type": "boolean",
+      "required": false,
+      "default": true,
+      "description": "Use MuSGD optimizer (hybrid SGD + Muon)"
+    },
+    "use_progloss_stal": {
+      "type": "boolean",
+      "required": false,
+      "default": true,
+      "description": "Use ProgLoss + STAL for small object accuracy"
+    }
+  },
+  "steps": [
+    {
+      "id": "verify_dataset",
+      "type": "agent",
+      "description": "Validate dataset structure for YOLO26",
+      "timeout": 60
+    },
+    {
+      "id": "install_ultralytics",
+      "type": "bash",
+      "description": "Install latest ultralytics package",
+      "cmd": "pip install --upgrade ultralytics",
+      "timeout": 120
+    },
+    {
+      "id": "load_model",
+      "type": "python",
+      "description": "Load YOLO26 model",
+      "cmd": "from ultralytics import YOLO; model = YOLO('yolo26{model_size}.pt'); print(f'Model loaded: {model_size}')",
+      "timeout": 30
+    },
+    {
+      "id": "configure_optimizer",
+      "type": "agent",
+      "description": "Configure MuSGD optimizer if enabled"
+    },
+    {
+      "id": "configure_loss",
+      "type": "agent",
+      "description": "Configure ProgLoss + STAL for small objects if enabled"
+    },
+    {
+      "id": "run_training",
+      "type": "bash",
+      "description": "Train YOLO26 model",
+      "cmd": "yolo train model=yolo26{model_size}.pt data={config_path} epochs=100 imgsz=640 optimizer={'musgd' if use_musgd else 'auto'}",
+      "timeout": 3600
+    },
+    {
+      "id": "validate_model",
+      "type": "bash",
+      "description": "Validate trained model",
+      "cmd": "yolo val model=runs/train/weights/best.pt data={config_path}",
+      "timeout": 300
+    }
+  ],
+  "verification": [
+    {
+      "type": "file_exists",
+      "path": "runs/train/weights/best.pt"
+    },
+    {
+      "type": "bash",
+      "cmd": "python -c \"from ultralytics import YOLO; YOLO('runs/train/weights/best.pt').val()\"",
+      "expect_exit": 0
+    }
+  ],
+  "metadata": {
+    "author": "Nacho @ Factor.com.ar",
+    "created": "2026-01-19",
+    "updated": "2026-01-19",
+    "tags": ["yolo26", "detection", "nms-free", "edge-optimized"]
+  }
+}

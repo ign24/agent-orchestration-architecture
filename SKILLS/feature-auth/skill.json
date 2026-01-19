@@ -1,0 +1,107 @@
+{
+  "name": "feature-auth",
+  "version": "1.0.0",
+  "description": "Add Supabase authentication to Next.js project with login/signup",
+  "autonomy": "co-pilot",
+  "context7_required": ["/supabase/supabase", "/vercel/next.js"],
+  "pre_requisites": [
+    {
+      "check": "file_exists",
+      "args": ["{project_path}/package.json"],
+      "error_message": "Next.js project not found at {project_path}"
+    },
+    {
+      "check": "env_var_set",
+      "args": ["SUPABASE_URL"],
+      "error_message": "SUPABASE_URL environment variable required"
+    },
+    {
+      "check": "env_var_set",
+      "args": ["SUPABASE_ANON_KEY"],
+      "error_message": "SUPABASE_ANON_KEY environment variable required"
+    }
+  ],
+  "inputs": {
+    "project_path": {
+      "type": "string",
+      "required": true,
+      "description": "Path to Next.js project"
+    },
+    "auth_provider": {
+      "type": "string",
+      "required": false,
+      "default": "supabase",
+      "enum": ["supabase"]
+    }
+  },
+  "steps": [
+    {
+      "id": "install_dependencies",
+      "type": "bash",
+      "description": "Install Supabase dependencies",
+      "cmd": "bun add @supabase/supabase-js @supabase/ssr",
+      "working_dir": "{project_path}",
+      "timeout": 60
+    },
+    {
+      "id": "create_client_lib",
+      "type": "agent",
+      "description": "Create lib/supabase/ directory and client files",
+      "cmd": "Create src/lib/supabase/client.ts and src/lib/supabase/server.ts with Supabase client setup"
+    },
+    {
+      "id": "update_env",
+      "type": "agent",
+      "description": "Update .env.local with Supabase credentials",
+      "cmd": "Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY to .env.local"
+    },
+    {
+      "id": "create_middleware",
+      "type": "checkpoint",
+      "description": "Confirm before creating middleware",
+      "checkpoint_message": "About to create middleware.ts for route protection. Continue?"
+    },
+    {
+      "id": "create_auth_actions",
+      "type": "agent",
+      "description": "Create Server Actions for auth",
+      "cmd": "Create src/app/actions/auth.ts with signIn, signUp, signOut actions"
+    },
+    {
+      "id": "create_login_page",
+      "type": "agent",
+      "description": "Create login page",
+      "cmd": "Create src/app/login/page.tsx with login/signup forms"
+    },
+    {
+      "id": "create_dashboard_page",
+      "type": "agent",
+      "description": "Create protected dashboard page",
+      "cmd": "Create src/app/dashboard/page.tsx with user info and logout"
+    }
+  ],
+  "verification": [
+    {
+      "type": "file_exists",
+      "path": "{project_path}/src/lib/supabase/client.ts"
+    },
+    {
+      "type": "file_exists",
+      "path": "{project_path}/src/app/actions/auth.ts"
+    },
+    {
+      "type": "file_exists",
+      "path": "{project_path}/src/app/login/page.tsx"
+    },
+    {
+      "type": "file_exists",
+      "path": "{project_path}/middleware.ts"
+    }
+  ],
+  "metadata": {
+    "author": "Nacho @ Factor.com.ar",
+    "created": "2026-01-19",
+    "updated": "2026-01-19",
+    "tags": ["auth", "supabase", "nextjs", "security"]
+  }
+}

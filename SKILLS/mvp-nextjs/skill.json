@@ -1,0 +1,160 @@
+{
+  "name": "mvp-nextjs",
+  "version": "1.0.0",
+  "description": "Create a new Next.js 15 MVP with TypeScript, Tailwind 4, and shadcn/ui",
+  "autonomy": "delegado",
+  "context7_required": [
+    "/vercel/next.js",
+    "/tailwindlabs/tailwindcss",
+    "/shadcn-ui/ui"
+  ],
+  "pre_requisites": [
+    {
+      "check": "command_exists",
+      "args": ["bun"],
+      "error_message": "Bun is required. Install: https://bun.sh"
+    },
+    {
+      "check": "command_exists",
+      "args": ["git"],
+      "error_message": "Git is required for version control"
+    }
+  ],
+  "inputs": {
+    "project_name": {
+      "type": "string",
+      "required": true,
+      "description": "Name of the project (kebab-case)"
+    },
+    "target_dir": {
+      "type": "string",
+      "required": false,
+      "default": "C:/Proyectos",
+      "description": "Parent directory for project"
+    },
+    "include_supabase": {
+      "type": "boolean",
+      "required": false,
+      "default": false,
+      "description": "Include Supabase client setup"
+    },
+    "include_auth": {
+      "type": "boolean",
+      "required": false,
+      "default": false,
+      "description": "Include authentication boilerplate"
+    }
+  },
+  "steps": [
+    {
+      "id": "create_nextjs_app",
+      "type": "bash",
+      "description": "Create Next.js app with bun",
+      "cmd": "bun create next-app {project_name} --typescript --tailwind --eslint --app --src-dir --import-alias \"@/*\"",
+      "working_dir": "{target_dir}",
+      "timeout": 120
+    },
+    {
+      "id": "install_shadcn",
+      "type": "bash",
+      "description": "Initialize shadcn/ui",
+      "cmd": "bunx --bun shadcn@latest init -y",
+      "working_dir": "{target_dir}/{project_name}",
+      "timeout": 60,
+      "retry": 1
+    },
+    {
+      "id": "add_base_components",
+      "type": "bash",
+      "description": "Add essential shadcn components",
+      "cmd": "bunx --bun shadcn@latest add button card input label -y",
+      "working_dir": "{target_dir}/{project_name}",
+      "timeout": 60
+    },
+    {
+      "id": "create_project_context",
+      "type": "agent",
+      "description": "Create PROJECT_CONTEXT.md from template",
+      "cmd": "Copy TEMPLATES/PROJECT_CONTEXT.md to {target_dir}/{project_name}/PROJECT_CONTEXT.md and customize with project_name"
+    },
+    {
+      "id": "setup_env_example",
+      "type": "bash",
+      "description": "Create .env.example file",
+      "cmd": "echo \"# Environment Variables\" > .env.example && echo \"NEXT_PUBLIC_APP_URL=http://localhost:3000\" >> .env.example",
+      "working_dir": "{target_dir}/{project_name}"
+    },
+    {
+      "id": "checkpoint_review",
+      "type": "checkpoint",
+      "description": "Review project structure before final setup",
+      "checkpoint_message": "Project created. Review structure and continue with git init?"
+    },
+    {
+      "id": "init_git",
+      "type": "bash",
+      "description": "Initialize git repository",
+      "cmd": "git init && git add . && git commit -m \"Initial commit: Next.js 15 MVP with Tailwind and shadcn/ui\"",
+      "working_dir": "{target_dir}/{project_name}"
+    },
+    {
+      "id": "verify_dev_server",
+      "type": "bash",
+      "description": "Quick check that dev server starts",
+      "cmd": "bun run build",
+      "working_dir": "{target_dir}/{project_name}",
+      "timeout": 180,
+      "retry": 1
+    }
+  ],
+  "verification": [
+    {
+      "type": "dir_exists",
+      "path": "{target_dir}/{project_name}",
+      "error_message": "Project directory was not created"
+    },
+    {
+      "type": "file_exists",
+      "path": "{target_dir}/{project_name}/package.json",
+      "error_message": "package.json not found"
+    },
+    {
+      "type": "file_exists",
+      "path": "{target_dir}/{project_name}/src/app/page.tsx",
+      "error_message": "Main page.tsx not found"
+    },
+    {
+      "type": "json_valid",
+      "path": "{target_dir}/{project_name}/package.json",
+      "error_message": "package.json is not valid JSON"
+    },
+    {
+      "type": "dir_exists",
+      "path": "{target_dir}/{project_name}/.git",
+      "error_message": "Git repository was not initialized"
+    }
+  ],
+  "rollback": [
+    {
+      "id": "cleanup",
+      "cmd": "rm -rf {target_dir}/{project_name}",
+      "description": "Remove project directory on failure"
+    }
+  ],
+  "outputs": {
+    "project_path": {
+      "type": "string",
+      "description": "Full path to created project"
+    },
+    "next_steps": {
+      "type": "array",
+      "description": "Suggested next steps for the user"
+    }
+  },
+  "metadata": {
+    "author": "Nacho @ Factor.com.ar",
+    "created": "2026-01-19",
+    "updated": "2026-01-19",
+    "tags": ["nextjs", "react", "tailwind", "shadcn", "mvp", "frontend"]
+  }
+}

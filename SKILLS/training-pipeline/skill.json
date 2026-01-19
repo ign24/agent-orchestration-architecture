@@ -1,0 +1,82 @@
+{
+  "name": "training-pipeline",
+  "version": "1.0.0",
+  "description": "Run YOLO training with config-based experiments",
+  "autonomy": "co-pilot",
+  "context7_required": ["/ultralytics/ultralytics", "/pytorch/pytorch"],
+  "pre_requisites": [
+    {
+      "check": "file_exists",
+      "args": ["{config_path}"],
+      "error_message": "Training config not found"
+    },
+    {
+      "check": "command_exists",
+      "args": ["python"],
+      "error_message": "Python required"
+    }
+  ],
+  "inputs": {
+    "config_path": {
+      "type": "string",
+      "required": true,
+      "description": "Path to training config YAML"
+    },
+    "baseline_metrics": {
+      "type": "string",
+      "required": false,
+      "description": "Path to baseline metrics JSON for comparison"
+    }
+  },
+  "steps": [
+    {
+      "id": "verify_dataset",
+      "type": "bash",
+      "description": "Validate dataset structure",
+      "cmd": "python scripts/validate_dataset.py $(grep '^data:' {config_path} | cut -d' ' -f2)",
+      "timeout": 30
+    },
+    {
+      "id": "checkpoint_training",
+      "type": "checkpoint",
+      "description": "Confirm before starting training",
+      "checkpoint_message": "Starting YOLO training. This may take hours. Continue?"
+    },
+    {
+      "id": "run_training",
+      "type": "bash",
+      "description": "Run training from config",
+      "cmd": "python scripts/train.py --config {config_path}",
+      "timeout": 3600
+    },
+    {
+      "id": "evaluate_model",
+      "type": "bash",
+      "description": "Evaluate trained model",
+      "cmd": "python scripts/evaluate.py --model outputs/training/latest/weights/best.pt --data $(grep '^data:' {config_path} | cut -d' ' -f2)",
+      "timeout": 300
+    },
+    {
+      "id": "compare_baseline",
+      "type": "agent",
+      "description": "Compare with baseline if provided",
+      "cmd": "If baseline_metrics provided, run comparison and show results"
+    }
+  ],
+  "verification": [
+    {
+      "type": "file_exists",
+      "path": "outputs/training/latest/weights/best.pt"
+    },
+    {
+      "type": "json_valid",
+      "path": "outputs/evaluation/metrics.json"
+    }
+  ],
+  "metadata": {
+    "author": "Nacho @ Factor.com.ar",
+    "created": "2026-01-19",
+    "updated": "2026-01-19",
+    "tags": ["training", "yolo", "ml", "experiment"]
+  }
+}

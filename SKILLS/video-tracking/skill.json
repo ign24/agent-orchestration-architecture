@@ -1,0 +1,134 @@
+{
+  "name": "video-tracking",
+  "version": "1.0.0",
+  "description": "Multi-object tracking in video with BYTETrack, StrongSORT, and track persistence",
+  "autonomy": "delegado",
+  "context7_required": ["/ultralytics/ultralytics", "/roboflow/supervision"],
+  "pre_requisites": [
+    {
+      "check": "file_exists",
+      "args": ["{model_path}"],
+      "error_message": "YOLO26 model not found"
+    },
+    {
+      "check": "file_exists",
+      "args": ["{video_source}"],
+      "error_message": "Video source not found"
+    }
+  ],
+  "inputs": {
+    "model_path": {
+      "type": "string",
+      "required": true,
+      "description": "Path to YOLO26 model (.pt file)"
+    },
+    "video_source": {
+      "type": "string",
+      "required": true,
+      "description": "Path to video file or directory"
+    },
+    "tracker_type": {
+      "type": "string",
+      "required": false,
+      "default": "bytetrack",
+      "enum": ["bytetrack", "strongsort", "ocsort"],
+      "description": "Tracker algorithm"
+    },
+    "enable_reid": {
+      "type": "boolean",
+      "required": false,
+      "default": true,
+      "description": "Enable Re-identification (ReID) for track persistence"
+    },
+    "output_format": {
+      "type": "string",
+      "required": false,
+      "default": "mot",
+      "enum": ["mot", "coco", "csv"],
+      "description": "Output format for tracks"
+    },
+    "min_confidence": {
+      "type": "number",
+      "required": false,
+      "default": 0.5,
+      "description": "Minimum confidence threshold for tracking"
+    },
+    "max_tracks": {
+      "type": "number",
+      "required": false,
+      "default": 1000,
+      "description": "Maximum number of tracks per scene"
+    }
+  },
+  "steps": [
+    {
+      "id": "install_supervision",
+      "type": "bash",
+      "description": "Install supervision library for tracking",
+      "cmd": "pip install supervision",
+      "timeout": 120
+    },
+    {
+      "id": "load_yolo26",
+      "type": "python",
+      "description": "Load YOLO26 detection model",
+      "cmd": "from ultralytics import YOLO; model = YOLO('{model_path}'); print(f'YOLO26 model loaded')",
+      "timeout": 60
+    },
+    {
+      "id": "initialize_tracker",
+      "type": "python",
+      "description": "Initialize BYTETrack or StrongSORT tracker",
+      "cmd": "from supervision import {tracker_type}_tracker; tracker = {tracker_type}_tracker(); print(f'{tracker_type} initialized')",
+      "timeout": 30
+    },
+    {
+      "id": "process_video",
+      "type": "bash",
+      "description": "Process video frame by frame with tracking",
+      "cmd": "python scripts/video_tracking.py --video {video_source} --model {model_path} --tracker {tracker_type} --conf {min_confidence} --max-tracks {max_tracks} --output outputs/tracking/",
+      "timeout": 3600
+    },
+    {
+      "id": "apply_reid",
+      "type": "agent",
+      "description": "Apply ReID for track persistence across video",
+      "timeout": 60
+    },
+    {
+      "id": "export_mot",
+      "type": "bash",
+      "description": "Export tracks in MOT format",
+      "cmd": "python scripts/export_mot.py --input outputs/tracking/tracks.json --output outputs/tracking/results.mot",
+      "timeout": 60
+    },
+    {
+      "id": "visualize",
+      "type": "bash",
+      "description": "Create visualization with track IDs",
+      "cmd": "python scripts/visualize_tracks.py --video {video_source} --tracks outputs/tracking/results.mot --output outputs/tracking/visualized.mp4",
+      "timeout": 300
+    }
+  ],
+  "verification": [
+    {
+      "type": "file_exists",
+      "path": "outputs/tracking/results.mot"
+    },
+    {
+      "type": "file_exists",
+      "path": "outputs/tracking/visualized.mp4"
+    },
+    {
+      "type": "bash",
+      "cmd": "python -c \"import supervision; print(f'supervision: {supervision.__version__}')\"",
+      "expect_exit": 0
+    }
+  ],
+  "metadata": {
+    "author": "Nacho @ Factor.com.ar",
+    "created": "2026-01-19",
+    "updated": "2026-01-19",
+    "tags": ["tracking", "bytetrack", "strongsort", "reid", "video", "mot"]
+  }
+}

@@ -1,0 +1,129 @@
+{
+  "name": "mvp-fastapi",
+  "version": "1.0.0",
+  "description": "Create new FastAPI project with TypeScript-like structure",
+  "autonomy": "delegado",
+  "context7_required": ["/tiangolo/fastapi", "/pydantic/pydantic"],
+  "pre_requisites": [
+    {
+      "check": "command_exists",
+      "args": ["python"],
+      "error_message": "Python 3.11+ required"
+    },
+    {
+      "check": "command_exists",
+      "args": ["uvicorn"],
+      "error_message": "Uvicorn not installed. Run: pip install uvicorn"
+    }
+  ],
+  "inputs": {
+    "project_name": {
+      "type": "string",
+      "required": true,
+      "description": "Project name (kebab-case)"
+    },
+    "target_dir": {
+      "type": "string",
+      "required": false,
+      "default": "C:/Proyectos",
+      "description": "Parent directory"
+    },
+    "include_crud": {
+      "type": "boolean",
+      "required": false,
+      "default": true,
+      "description": "Include example CRUD endpoints"
+    }
+  },
+  "steps": [
+    {
+      "id": "create_structure",
+      "type": "bash",
+      "description": "Create project directory structure",
+      "cmd": "mkdir -p {target_dir}/{project_name}/src/{api,models,schemas,services} {target_dir}/{project_name}/{tests,scripts}",
+      "working_dir": "."
+    },
+    {
+      "id": "create_pyproject",
+      "type": "agent",
+      "description": "Create pyproject.toml with FastAPI dependencies",
+      "cmd": "Create pyproject.toml with FastAPI, Uvicorn, Pydantic, pytest, ruff"
+    },
+    {
+      "id": "create_config",
+      "type": "agent",
+      "description": "Create src/config.py with settings",
+      "cmd": "Create Pydantic Settings class for environment variables"
+    },
+    {
+      "id": "create_main_app",
+      "type": "agent",
+      "description": "Create main FastAPI app",
+      "cmd": "Create src/main.py with FastAPI app, CORS, health check"
+    },
+    {
+      "id": "create_router",
+      "type": "agent",
+      "description": "Create example router",
+      "cmd": "Create src/api/items.py with CRUD endpoints"
+    },
+    {
+      "id": "create_schemas",
+      "type": "agent",
+      "description": "Create Pydantic schemas",
+      "cmd": "Create src/schemas/item.py with BaseModel schemas"
+    },
+    {
+      "id": "create_env_example",
+      "type": "bash",
+      "description": "Create .env.example",
+      "cmd": "echo 'ENVIRONMENT=development\\nCORS_ORIGINS=[\"http://localhost:3000\"]' > .env.example",
+      "working_dir": "{target_dir}/{project_name}"
+    },
+    {
+      "id": "create_gitignore",
+      "type": "bash",
+      "description": "Create .gitignore",
+      "cmd": "echo '.venv/\\n__pycache__/\\n.env\\n.pytest_cache/' > .gitignore",
+      "working_dir": "{target_dir}/{project_name}"
+    },
+    {
+      "id": "setup_venv",
+      "type": "bash",
+      "description": "Create virtual environment and install",
+      "cmd": "cd {target_dir}/{project_name} && python -m venv .venv && .venv/Scripts/pip install -e \".[dev]\"",
+      "timeout": 120
+    },
+    {
+      "id": "run_lint",
+      "type": "bash",
+      "description": "Run lint check",
+      "cmd": ".venv/Scripts/ruff check .",
+      "working_dir": "{target_dir}/{project_name}"
+    }
+  ],
+  "verification": [
+    {
+      "type": "dir_exists",
+      "path": "{target_dir}/{project_name}/src"
+    },
+    {
+      "type": "file_exists",
+      "path": "{target_dir}/{project_name}/pyproject.toml"
+    },
+    {
+      "type": "file_exists",
+      "path": "{target_dir}/{project_name}/src/main.py"
+    },
+    {
+      "type": "json_valid",
+      "path": "{target_dir}/{project_name}/pyproject.toml"
+    }
+  ],
+  "metadata": {
+    "author": "Nacho @ Factor.com.ar",
+    "created": "2026-01-19",
+    "updated": "2026-01-19",
+    "tags": ["fastapi", "python", "api", "backend"]
+  }
+}

@@ -1,0 +1,75 @@
+{
+  "name": "yolo-detection",
+  "version": "1.0.0",
+  "description": "Setup YOLO object detection with Ultralytics",
+  "autonomy": "delegado",
+  "context7_required": ["/ultralytics/ultralytics", "/roboflow/supervision"],
+  "pre_requisites": [
+    {
+      "check": "command_exists",
+      "args": ["python"],
+      "error_message": "Python 3.11+ required"
+    }
+  ],
+  "inputs": {
+    "project_path": {
+      "type": "string",
+      "required": true,
+      "description": "Project directory"
+    },
+    "model_size": {
+      "type": "string",
+      "required": false,
+      "default": "n",
+      "enum": ["n", "s", "m", "l", "x"],
+      "description": "Model size: n=nano, s=small, m=medium, l=large, x=extra-large"
+    },
+    "create_script": {
+      "type": "boolean",
+      "required": false,
+      "default": true,
+      "description": "Create reusable detection script"
+    }
+  },
+  "steps": [
+    {
+      "id": "install_deps",
+      "type": "bash",
+      "description": "Install ultralytics and supervision",
+      "cmd": "pip install ultralytics supervision",
+      "timeout": 120
+    },
+    {
+      "id": "verify_install",
+      "type": "bash",
+      "description": "Verify installation",
+      "cmd": "python -c \"from ultralytics import YOLO; import supervision as sv; print('OK')\"",
+      "timeout": 30
+    },
+    {
+      "id": "create_detection_script",
+      "type": "agent",
+      "description": "Create detect.py script",
+      "cmd": "Create scripts/detect.py with CLI for running detection on images/videos"
+    },
+    {
+      "id": "test_inference",
+      "type": "agent",
+      "description": "Test basic inference",
+      "cmd": "Create test script to verify model loads and runs inference"
+    }
+  ],
+  "verification": [
+    {
+      "type": "bash",
+      "cmd": "python -c \"import ultralytics; import supervision; print('OK')\"",
+      "expect_exit": 0
+    }
+  ],
+  "metadata": {
+    "author": "Nacho @ Factor.com.ar",
+    "created": "2026-01-19",
+    "updated": "2026-01-19",
+    "tags": ["yolo", "object-detection", "cv", "ml"]
+  }
+}

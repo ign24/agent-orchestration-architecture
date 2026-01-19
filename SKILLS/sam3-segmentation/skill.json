@@ -1,0 +1,144 @@
+{
+  "name": "sam3-segmentation",
+  "version": "2.0.0",
+  "description": "SAM3 Promptable Concept Segmentation via Ultralytics - text prompts, video tracking, 4M+ concepts",
+  "autonomy": "co-pilot",
+  "context7_required": ["/ultralytics/ultralytics"],
+  "pre_requisites": [
+    {
+      "check": "command_exists",
+      "args": ["python"],
+      "error_message": "Python 3.11+ required"
+    }
+  ],
+  "inputs": {
+    "model_path": {
+      "type": "string",
+      "required": false,
+      "default": "sam3.pt",
+      "description": "Path to SAM3 weights (download from HuggingFace)"
+    },
+    "source": {
+      "type": "string",
+      "required": true,
+      "description": "Path to image or video file"
+    },
+    "prompts": {
+      "type": "array",
+      "required": true,
+      "description": "Text prompts for segmentation (e.g., ['person without helmet', 'forklift'])"
+    },
+    "output_path": {
+      "type": "string",
+      "required": false,
+      "default": "outputs/sam3/",
+      "description": "Output directory for results"
+    },
+    "confidence": {
+      "type": "number",
+      "required": false,
+      "default": 0.35,
+      "description": "Confidence threshold (0.0-1.0)"
+    },
+    "use_half": {
+      "type": "boolean",
+      "required": false,
+      "default": true,
+      "description": "Use FP16 for faster inference (recommended for GPU)"
+    },
+    "save_video": {
+      "type": "boolean",
+      "required": false,
+      "default": true,
+      "description": "Export video with mask overlay"
+    },
+    "save_json": {
+      "type": "boolean",
+      "required": false,
+      "default": true,
+      "description": "Export detection stats as JSON"
+    }
+  },
+  "steps": [
+    {
+      "id": "verify_ultralytics",
+      "type": "bash",
+      "description": "Verify Ultralytics installation with SAM3 support",
+      "cmd": "python -c \"from ultralytics.models.sam import SAM3VideoSemanticPredictor; print('SAM3 Ultralytics OK')\"",
+      "timeout": 30
+    },
+    {
+      "id": "verify_model",
+      "type": "bash",
+      "description": "Verify SAM3 model file exists",
+      "cmd": "python -c \"import os; assert os.path.exists('{model_path}'), 'SAM3 model not found at {model_path}'; print('Model found')\"",
+      "timeout": 10
+    },
+    {
+      "id": "verify_source",
+      "type": "bash",
+      "description": "Verify source file exists",
+      "cmd": "python -c \"import os; assert os.path.exists('{source}'), 'Source not found: {source}'; print('Source found')\"",
+      "timeout": 10
+    },
+    {
+      "id": "create_output_dir",
+      "type": "bash",
+      "description": "Create output directory",
+      "cmd": "python -c \"from pathlib import Path; Path('{output_path}').mkdir(parents=True, exist_ok=True); print('Output dir ready')\"",
+      "timeout": 10
+    },
+    {
+      "id": "run_segmentation",
+      "type": "bash",
+      "description": "Run SAM3 segmentation with text prompts via Ultralytics",
+      "cmd": "python -c \"from ultralytics.models.sam import SAM3VideoSemanticPredictor; p = SAM3VideoSemanticPredictor(overrides=dict(conf={confidence}, task='segment', mode='predict', model='{model_path}', half={use_half}, verbose=True)); results = list(p(source='{source}', text={prompts}, stream=True)); print(f'Processed {len(results)} frames')\"",
+      "timeout": 600
+    },
+    {
+      "id": "export_results",
+      "type": "agent",
+      "description": "Export video with mask overlay and stats JSON",
+      "timeout": 300
+    }
+  ],
+  "verification": [
+    {
+      "type": "bash",
+      "cmd": "python -c \"from ultralytics.models.sam import SAM3VideoSemanticPredictor; print('SAM3 OK')\"",
+      "expect_exit": 0
+    },
+    {
+      "type": "dir_exists",
+      "path": "{output_path}",
+      "error_message": "Output directory not created"
+    }
+  ],
+  "rollback": [
+    {
+      "id": "cleanup_output",
+      "cmd": "echo 'No destructive operations to rollback'",
+      "description": "SAM3 segmentation is read-only, no rollback needed"
+    }
+  ],
+  "outputs": {
+    "video_output": {
+      "type": "string",
+      "description": "Path to output video with mask overlay"
+    },
+    "stats_json": {
+      "type": "string",
+      "description": "Path to JSON file with detection statistics"
+    },
+    "detection_count": {
+      "type": "number",
+      "description": "Total number of detections"
+    }
+  },
+  "metadata": {
+    "author": "Nacho @ Factor.com.ar",
+    "created": "2026-01-19",
+    "updated": "2026-01-19",
+    "tags": ["sam3", "segmentation", "ultralytics", "promptable", "video", "industrial-safety"]
+  }
+}

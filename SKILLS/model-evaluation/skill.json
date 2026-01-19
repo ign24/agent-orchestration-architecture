@@ -1,0 +1,83 @@
+{
+  "name": "model-evaluation",
+  "version": "1.0.0",
+  "description": "Comprehensive model evaluation with metrics and baseline comparison",
+  "autonomy": "delegado",
+  "context7_required": ["/ultralytics/ultralytics", "/roboflow/supervision"],
+  "pre_requisites": [
+    {
+      "check": "file_exists",
+      "args": ["{model_path}"],
+      "error_message": "Model file not found"
+    }
+  ],
+  "inputs": {
+    "model_path": {
+      "type": "string",
+      "required": true,
+      "description": "Path to trained model (.pt file)"
+    },
+    "data_yaml": {
+      "type": "string",
+      "required": true,
+      "description": "Path to data.yaml"
+    },
+    "baseline_path": {
+      "type": "string",
+      "required": false,
+      "description": "Path to baseline metrics for comparison"
+    },
+    "run_error_analysis": {
+      "type": "boolean",
+      "required": false,
+      "default": false,
+      "description": "Run detailed error analysis"
+    }
+  },
+  "steps": [
+    {
+      "id": "run_validation",
+      "type": "bash",
+      "description": "Run YOLO validation",
+      "cmd": "python -c \"from ultralytics import YOLO; m = YOLO('{model_path}'); metrics = m.val(data='{data_yaml}'); print(f'mAP50: {{metrics.box.map50:.4f}}'); print(f'mAP50-95: {{metrics.box.map:.4f}}')\"",
+      "timeout": 600
+    },
+    {
+      "id": "save_metrics",
+      "type": "agent",
+      "description": "Save metrics to JSON",
+      "cmd": "Create outputs/evaluation/metrics.json with all metrics"
+    },
+    {
+      "id": "compare_baseline",
+      "type": "agent",
+      "description": "Compare with baseline if provided",
+      "cmd": "If baseline_path exists, load and compare metrics, calculate improvements"
+    },
+    {
+      "id": "error_analysis",
+      "type": "agent",
+      "description": "Analyze false positives/negatives",
+      "cmd": "If run_error_analysis, analyze detection errors"
+    },
+    {
+      "id": "benchmark_speed",
+      "type": "bash",
+      "description": "Benchmark inference speed",
+      "cmd": "python scripts/benchmark_speed.py --model {model_path}",
+      "timeout": 120
+    }
+  ],
+  "verification": [
+    {
+      "type": "file_exists",
+      "path": "outputs/evaluation/metrics.json"
+    }
+  ],
+  "metadata": {
+    "author": "Nacho @ Factor.com.ar",
+    "created": "2026-01-19",
+    "updated": "2026-01-19",
+    "tags": ["evaluation", "metrics", "benchmark", "ml"]
+  }
+}

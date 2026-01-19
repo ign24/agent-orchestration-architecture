@@ -1,0 +1,91 @@
+{
+  "name": "dataset-prep",
+  "version": "1.0.0",
+  "description": "Prepare and format datasets for YOLO training",
+  "autonomy": "co-pilot",
+  "context7_required": ["/ultralytics/ultralytics", "/roboflow/supervision"],
+  "pre_requisites": [
+    {
+      "check": "dir_exists",
+      "args": ["{source_dir}"],
+      "error_message": "Source directory not found"
+    }
+  ],
+  "inputs": {
+    "source_dir": {
+      "type": "string",
+      "required": true,
+      "description": "Source directory with annotations"
+    },
+    "output_dir": {
+      "type": "string",
+      "required": true,
+      "description": "Output directory for YOLO format dataset"
+    },
+    "format": {
+      "type": "string",
+      "required": false,
+      "default": "coco",
+      "enum": ["coco", "voc", "roboflow"],
+      "description": "Input annotation format"
+    },
+    "val_ratio": {
+      "type": "number",
+      "required": false,
+      "default": 0.2,
+      "description": "Validation split ratio"
+    },
+    "class_names": {
+      "type": "array",
+      "required": true,
+      "description": "List of class names"
+    }
+  },
+  "steps": [
+    {
+      "id": "convert_format",
+      "type": "agent",
+      "description": "Convert annotations to YOLO format",
+      "cmd": "Convert {format} annotations to YOLO format (class x_center y_center width height)"
+    },
+    {
+      "id": "split_dataset",
+      "type": "agent",
+      "description": "Split into train/val",
+      "cmd": "Randomly split images into train and val sets with {val_ratio} ratio"
+    },
+    {
+      "id": "create_data_yaml",
+      "type": "agent",
+      "description": "Create data.yaml config",
+      "cmd": "Create data.yaml with paths and class names"
+    },
+    {
+      "id": "validate_structure",
+      "type": "bash",
+      "description": "Validate final structure",
+      "cmd": "python scripts/validate_dataset.py {output_dir}",
+      "timeout": 30
+    }
+  ],
+  "verification": [
+    {
+      "type": "dir_exists",
+      "path": "{output_dir}/train/images"
+    },
+    {
+      "type": "dir_exists",
+      "path": "{output_dir}/val/images"
+    },
+    {
+      "type": "file_exists",
+      "path": "{output_dir}/data.yaml"
+    }
+  ],
+  "metadata": {
+    "author": "Nacho @ Factor.com.ar",
+    "created": "2026-01-19",
+    "updated": "2026-01-19",
+    "tags": ["dataset", "yolo", "cv", "preprocessing"]
+  }
+}

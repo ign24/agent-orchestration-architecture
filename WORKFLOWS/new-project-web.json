@@ -1,0 +1,77 @@
+{
+  "name": "new-project-web",
+  "version": "1.0.0",
+  "description": "Complete workflow for creating a new web project with Next.js, optional auth, and deployment",
+  "inputs": {
+    "project_name": {
+      "type": "string",
+      "required": true,
+      "description": "Project name (kebab-case)"
+    },
+    "target_dir": {
+      "type": "string",
+      "required": false,
+      "default": "C:/Proyectos",
+      "description": "Parent directory for project"
+    },
+    "include_auth": {
+      "type": "boolean",
+      "required": false,
+      "default": false,
+      "description": "Include authentication with Supabase"
+    },
+    "deploy_to_vercel": {
+      "type": "boolean",
+      "required": false,
+      "default": false,
+      "description": "Deploy to Vercel after creation"
+    }
+  },
+  "phases": [
+    {
+      "name": "Create MVP",
+      "skill": "mvp-nextjs",
+      "inputs": {
+        "include_supabase": true
+      },
+      "checkpoint": true,
+      "checkpoint_message": "MVP created. Review the project structure and confirm to continue with additional features."
+    },
+    {
+      "name": "Add Authentication",
+      "skill": "feature-auth",
+      "condition": {
+        "type": "input_truthy",
+        "key": "include_auth"
+      },
+      "inputs": {
+        "auth_provider": "supabase"
+      },
+      "checkpoint": true,
+      "checkpoint_message": "Authentication added. Test login/signup before proceeding to deployment."
+    },
+    {
+      "name": "Deploy to Vercel",
+      "skill": "deploy-vercel",
+      "condition": {
+        "type": "input_truthy",
+        "key": "deploy_to_vercel"
+      },
+      "inputs": {
+        "environment": "preview"
+      },
+      "on_failure": "continue"
+    }
+  ],
+  "on_complete": {
+    "update_context": true,
+    "notify": false
+  },
+  "metadata": {
+    "author": "Nacho @ Factor.com.ar",
+    "created": "2026-01-19",
+    "updated": "2026-01-19",
+    "estimated_duration": "10-15 minutes",
+    "tags": ["web", "nextjs", "fullstack", "deployment"]
+  }
+}

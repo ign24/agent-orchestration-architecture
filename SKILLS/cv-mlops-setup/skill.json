@@ -1,0 +1,115 @@
+{
+  "name": "cv-mlops-setup",
+  "version": "1.0.0",
+  "description": "Complete MLOps pipeline setup for CV projects with MLflow, DVC, Evidently, and Kubeflow",
+  "autonomy": "co-pilot",
+  "context7_required": [],
+  "pre_requisites": [
+    {
+      "check": "command_exists",
+      "args": ["python"],
+      "error_message": "Python 3.11+ required"
+    },
+    {
+      "check": "command_exists",
+      "args": ["git"],
+      "error_message": "Git required for version control"
+    }
+  ],
+  "inputs": {
+    "tracking_backend": {
+      "type": "string",
+      "required": false,
+      "default": "mlflow",
+      "enum": ["mlflow", "wandb"],
+      "description": "Experiment tracking backend"
+    },
+    "data_storage": {
+      "type": "string",
+      "required": false,
+      "default": "local",
+      "enum": ["local", "s3", "gcs", "azure"],
+      "description": "Data storage backend"
+    },
+    "production_env": {
+      "type": "string",
+      "required": false,
+      "enum": ["kubernetes", "docker", "lambda", "vertex"],
+      "description": "Production deployment environment"
+    },
+    "enable_monitoring": {
+      "type": "boolean",
+      "required": false,
+      "default": true,
+      "description": "Enable Evidently AI monitoring"
+    }
+  },
+  "steps": [
+    {
+      "id": "init_git_repo",
+      "type": "bash",
+      "description": "Initialize Git repository",
+      "cmd": "git init && git add . && git commit -m 'Initial commit: MLOps setup'",
+      "timeout": 30
+    },
+    {
+      "id": "setup_dvc",
+      "type": "bash",
+      "description": "Initialize DVC for data versioning",
+      "cmd": "dvc init && dvc remote add -d s3 storage",
+      "timeout": 60
+    },
+    {
+      "id": "configure_tracking",
+      "type": "agent",
+      "description": "Configure MLflow or WandB for experiment tracking",
+      "timeout": 60
+    },
+    {
+      "id": "setup_monitoring",
+      "type": "agent",
+      "description": "Setup Evidently AI for production monitoring",
+      "timeout": 60
+    },
+    {
+      "id": "create_ci_cd",
+      "type": "agent",
+      "description": "Create CI/CD pipeline for model deployment",
+      "timeout": 60
+    },
+    {
+      "id": "setup_kubeflow",
+      "type": "agent",
+      "description": "Configure Kubeflow pipelines if using Kubernetes",
+      "timeout": 60
+    },
+    {
+      "id": "create_mlflow_server",
+      "type": "bash",
+      "description": "Deploy MLflow tracking server",
+      "cmd": "mlflow server --host 0.0.0.0 --port 5000",
+      "timeout": 30
+    }
+  ],
+  "verification": [
+    {
+      "type": "file_exists",
+      "path": ".dvc"
+    },
+    {
+      "type": "file_exists",
+      "path": ".git"
+    },
+    {
+      "type": "bash",
+      "cmd": "which mlflow",
+      "expect_exit": 0
+    }
+  ],
+  "metadata": {
+    "author": "Nacho @ Factor.com.ar",
+    "created": "2026-01-19",
+    "updated": "2026-01-19",
+    "tags": ["mlops", "mlflow", "dvc", "monitoring", "ci/cd"]
+  }
+}
